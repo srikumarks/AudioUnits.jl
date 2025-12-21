@@ -1,7 +1,7 @@
 # MIDI functionality for AudioUnits
 
 """
-    send_midi_event(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8)
+    sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8)
 
 Send a MIDI event to a music device AudioUnit.
 
@@ -25,18 +25,18 @@ Common MIDI messages:
 
 # Examples
 ```julia
-au = load_audiounit("DLSMusicDevice")
-initialize_audiounit(au)
+au = load("DLSMusicDevice")
+initialize(au)
 
 # Send Note On for middle C (60) with velocity 100 on channel 0
-send_midi_event(au, 0x90, 60, 100)
+sendmidi(au, 0x90, 60, 100)
 
 # Send Note Off for middle C
-send_midi_event(au, 0x80, 60, 0)
+sendmidi(au, 0x80, 60, 0)
 ```
 """
-function send_midi_event(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8)
-    if !supports_midi(au)
+function sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8)
+    if !supportsmidi(au)
         error("AudioUnit $(au.name) does not support MIDI input")
     end
 
@@ -62,7 +62,7 @@ function send_midi_event(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt
 end
 
 """
-    note_on(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0)
+    noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0)
 
 Send a MIDI Note On message.
 
@@ -75,13 +75,13 @@ Send a MIDI Note On message.
 # Examples
 ```julia
 # Play middle C at velocity 100 on channel 0
-note_on(au, 60)
+noteon(au, 60)
 
 # Play A above middle C at velocity 64 on channel 1
-note_on(au, 69, 64, channel=1)
+noteon(au, 69, 64, channel=1)
 ```
 """
-function note_on(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0)
+function noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0)
     if note < 0 || note > 127
         error("Note must be in range 0-127, got $note")
     end
@@ -93,11 +93,11 @@ function note_on(au::AudioUnit, note::Integer, velocity::Integer=100; channel::I
     end
 
     status = UInt8(0x90 | (channel & 0x0F))
-    return send_midi_event(au, status, UInt8(note), UInt8(velocity))
+    return sendmidi(au, status, UInt8(note), UInt8(velocity))
 end
 
 """
-    note_off(au::AudioUnit, note::Integer; channel::Integer=0)
+    noteoff(au::AudioUnit, note::Integer; channel::Integer=0)
 
 Send a MIDI Note Off message.
 
@@ -109,13 +109,13 @@ Send a MIDI Note Off message.
 # Examples
 ```julia
 # Stop middle C on channel 0
-note_off(au, 60)
+noteoff(au, 60)
 
 # Stop A above middle C on channel 1
-note_off(au, 69, channel=1)
+noteoff(au, 69, channel=1)
 ```
 """
-function note_off(au::AudioUnit, note::Integer; channel::Integer=0)
+function noteoff(au::AudioUnit, note::Integer; channel::Integer=0)
     if note < 0 || note > 127
         error("Note must be in range 0-127, got $note")
     end
@@ -124,11 +124,11 @@ function note_off(au::AudioUnit, note::Integer; channel::Integer=0)
     end
 
     status = UInt8(0x80 | (channel & 0x0F))
-    return send_midi_event(au, status, UInt8(note), UInt8(0))
+    return sendmidi(au, status, UInt8(note), UInt8(0))
 end
 
 """
-    control_change(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0)
+    controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0)
 
 Send a MIDI Control Change message.
 
@@ -148,13 +148,13 @@ Common controllers:
 # Examples
 ```julia
 # Set volume to 100 on channel 0
-control_change(au, 7, 100)
+controlchange(au, 7, 100)
 
 # Enable sustain pedal on channel 1
-control_change(au, 64, 127, channel=1)
+controlchange(au, 64, 127, channel=1)
 ```
 """
-function control_change(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0)
+function controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0)
     if controller < 0 || controller > 127
         error("Controller must be in range 0-127, got $controller")
     end
@@ -166,11 +166,11 @@ function control_change(au::AudioUnit, controller::Integer, value::Integer; chan
     end
 
     status = UInt8(0xB0 | (channel & 0x0F))
-    return send_midi_event(au, status, UInt8(controller), UInt8(value))
+    return sendmidi(au, status, UInt8(controller), UInt8(value))
 end
 
 """
-    program_change(au::AudioUnit, program::Integer; channel::Integer=0)
+    programchange(au::AudioUnit, program::Integer; channel::Integer=0)
 
 Send a MIDI Program Change message to change the instrument/preset.
 
@@ -182,13 +182,13 @@ Send a MIDI Program Change message to change the instrument/preset.
 # Examples
 ```julia
 # Change to program 0 (usually Acoustic Grand Piano)
-program_change(au, 0)
+programchange(au, 0)
 
 # Change to program 40 (usually Violin) on channel 1
-program_change(au, 40, channel=1)
+programchange(au, 40, channel=1)
 ```
 """
-function program_change(au::AudioUnit, program::Integer; channel::Integer=0)
+function programchange(au::AudioUnit, program::Integer; channel::Integer=0)
     if program < 0 || program > 127
         error("Program must be in range 0-127, got $program")
     end
@@ -197,11 +197,11 @@ function program_change(au::AudioUnit, program::Integer; channel::Integer=0)
     end
 
     status = UInt8(0xC0 | (channel & 0x0F))
-    return send_midi_event(au, status, UInt8(program), UInt8(0))
+    return sendmidi(au, status, UInt8(program), UInt8(0))
 end
 
 """
-    pitch_bend(au::AudioUnit, value::Integer; channel::Integer=0)
+    pitchbend(au::AudioUnit, value::Integer; channel::Integer=0)
 
 Send a MIDI Pitch Bend message.
 
@@ -213,16 +213,16 @@ Send a MIDI Pitch Bend message.
 # Examples
 ```julia
 # Center pitch (no bend)
-pitch_bend(au, 8192)
+pitchbend(au, 8192)
 
 # Bend up
-pitch_bend(au, 12288)
+pitchbend(au, 12288)
 
 # Bend down
-pitch_bend(au, 4096)
+pitchbend(au, 4096)
 ```
 """
-function pitch_bend(au::AudioUnit, value::Integer; channel::Integer=0)
+function pitchbend(au::AudioUnit, value::Integer; channel::Integer=0)
     if value < 0 || value > 16383
         error("Pitch bend value must be in range 0-16383, got $value")
     end
@@ -233,11 +233,11 @@ function pitch_bend(au::AudioUnit, value::Integer; channel::Integer=0)
     status = UInt8(0xE0 | (channel & 0x0F))
     lsb = UInt8(value & 0x7F)
     msb = UInt8((value >> 7) & 0x7F)
-    return send_midi_event(au, status, lsb, msb)
+    return sendmidi(au, status, lsb, msb)
 end
 
 """
-    all_notes_off(au::AudioUnit; channel::Integer=0)
+    allnotesoff(au::AudioUnit; channel::Integer=0)
 
 Turn off all notes on a MIDI channel.
 
@@ -248,19 +248,19 @@ Turn off all notes on a MIDI channel.
 # Examples
 ```julia
 # Stop all notes on channel 0
-all_notes_off(au)
+allnotesoff(au)
 
 # Stop all notes on all channels
 for ch in 0:15
-    all_notes_off(au, channel=ch)
+    allnotesoff(au, channel=ch)
 end
 ```
 """
-function all_notes_off(au::AudioUnit; channel::Integer=0)
+function allnotesoff(au::AudioUnit; channel::Integer=0)
     if channel < 0 || channel > 15
         error("Channel must be in range 0-15, got $channel")
     end
 
     # CC 123 = All Notes Off
-    return control_change(au, 123, 0, channel=channel)
+    return controlchange(au, 123, 0, channel=channel)
 end

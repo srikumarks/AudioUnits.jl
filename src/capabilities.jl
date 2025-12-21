@@ -1,7 +1,7 @@
 # AudioUnit capability detection
 
 """
-    supports_effects(au::AudioUnit) -> Bool
+    supportseffects(au::AudioUnit) -> Bool
 
 Check if an AudioUnit supports audio effects processing.
 
@@ -9,13 +9,13 @@ Returns `true` if the AudioUnit is an effect processor, `false` otherwise.
 
 # Examples
 ```julia
-au = load_audiounit("AULowpass")
-if supports_effects(au)
+au = load("AULowpass")
+if supportseffects(au)
     println("This is an effects processor")
 end
 ```
 """
-function supports_effects(au::AudioUnit)
+function supportseffects(au::AudioUnit)
     # Check if the AudioUnit type is an effect type
     return au.au_type in [
         kAudioUnitType_Effect,
@@ -28,7 +28,7 @@ function supports_effects(au::AudioUnit)
 end
 
 """
-    supports_midi(au::AudioUnit) -> Bool
+    supportsmidi(au::AudioUnit) -> Bool
 
 Check if an AudioUnit accepts MIDI input (i.e., is a music device/instrument).
 
@@ -36,13 +36,13 @@ Returns `true` if the AudioUnit can receive MIDI messages, `false` otherwise.
 
 # Examples
 ```julia
-au = load_audiounit("DLSMusicDevice")
-if supports_midi(au)
+au = load("DLSMusicDevice")
+if supportsmidi(au)
     println("This AudioUnit accepts MIDI input")
 end
 ```
 """
-function supports_midi(au::AudioUnit)
+function supportsmidi(au::AudioUnit)
     # Music devices and music effects typically support MIDI
     return au.au_type in [
         kAudioUnitType_MusicDevice,
@@ -51,7 +51,7 @@ function supports_midi(au::AudioUnit)
 end
 
 """
-    get_stream_format(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Output, element::UInt32 = 0) -> StreamFormat
+    streamformat(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Output, element::UInt32 = 0) -> StreamFormat
 
 Get the audio stream format for an AudioUnit.
 
@@ -67,14 +67,14 @@ Returns a `StreamFormat` struct with format information:
 
 # Examples
 ```julia
-format = get_stream_format(au)
+format = streamformat(au)
 println("Sample rate: ", format.sample_rate, " Hz")
 println("Channels: ", format.channels_per_frame)
 ```
 """
-function get_stream_format(au::AudioUnit;
-                          scope::UInt32 = kAudioUnitScope_Output,
-                          element::UInt32 = 0)
+function streamformat(au::AudioUnit;
+                     scope::UInt32 = kAudioUnitScope_Output,
+                     element::UInt32 = 0)
     # AudioStreamBasicDescription structure
     # typedef struct AudioStreamBasicDescription {
     #     Float64 mSampleRate;
@@ -123,7 +123,7 @@ function get_stream_format(au::AudioUnit;
 end
 
 """
-    get_channel_capabilities(au::AudioUnit) -> Vector{ChannelConfiguration}
+    channelcapabilities(au::AudioUnit) -> Vector{ChannelConfiguration}
 
 Get the supported channel configurations for an AudioUnit.
 
@@ -133,13 +133,13 @@ Returns a vector of `ChannelConfiguration` structs, each with:
 
 # Examples
 ```julia
-configs = get_channel_capabilities(au)
+configs = channelcapabilities(au)
 for config in configs
     println("In: ", config.input_channels, " Out: ", config.output_channels)
 end
 ```
 """
-function get_channel_capabilities(au::AudioUnit)
+function channelcapabilities(au::AudioUnit)
     size = Ref{UInt32}(0)
     writable = Ref{UInt32}(0)
 
@@ -151,7 +151,7 @@ function get_channel_capabilities(au::AudioUnit)
 
     if status != noErr || size[] == 0
         # If property not supported, return default based on type
-        if supports_midi(au)
+        if supportsmidi(au)
             # Music devices typically output stereo
             return [ChannelConfiguration(0, 2)]
         else
@@ -186,17 +186,17 @@ function get_channel_capabilities(au::AudioUnit)
 end
 
 """
-    get_latency(au::AudioUnit) -> Float64
+    latency(au::AudioUnit) -> Float64
 
 Get the processing latency of an AudioUnit in seconds.
 
 # Examples
 ```julia
-latency = get_latency(au)
-println("Latency: ", latency * 1000, " ms")
+lat = latency(au)
+println("Latency: ", lat * 1000, " ms")
 ```
 """
-function get_latency(au::AudioUnit)
+function latency(au::AudioUnit)
     if !au.initialized
         @warn "AudioUnit must be initialized to get accurate latency"
         return 0.0
@@ -214,7 +214,7 @@ function get_latency(au::AudioUnit)
 end
 
 """
-    get_tail_time(au::AudioUnit) -> Float64
+    tailtime(au::AudioUnit) -> Float64
 
 Get the tail time of an AudioUnit in seconds.
 
@@ -223,11 +223,11 @@ The tail time is how long the effect continues to output audio after the input s
 
 # Examples
 ```julia
-tail = get_tail_time(au)
+tail = tailtime(au)
 println("Tail time: ", tail, " seconds")
 ```
 """
-function get_tail_time(au::AudioUnit)
+function tailtime(au::AudioUnit)
     if !au.initialized
         return 0.0
     end
@@ -244,18 +244,18 @@ function get_tail_time(au::AudioUnit)
 end
 
 """
-    can_bypass(au::AudioUnit) -> Bool
+    canbypass(au::AudioUnit) -> Bool
 
 Check if an AudioUnit supports bypass mode.
 
 # Examples
 ```julia
-if can_bypass(au)
-    set_bypass(au, true)  # Enable bypass
+if canbypass(au)
+    setbypass!(au, true)  # Enable bypass
 end
 ```
 """
-function can_bypass(au::AudioUnit)
+function canbypass(au::AudioUnit)
     size = Ref{UInt32}(0)
     writable = Ref{UInt32}(0)
 
@@ -268,7 +268,7 @@ function can_bypass(au::AudioUnit)
 end
 
 """
-    set_bypass(au::AudioUnit, bypass::Bool) -> Bool
+    setbypass!(au::AudioUnit, bypass::Bool) -> Bool
 
 Enable or disable bypass mode for an AudioUnit.
 
@@ -276,11 +276,11 @@ Returns `true` on success, `false` otherwise.
 
 # Examples
 ```julia
-set_bypass(au, true)   # Bypass the effect
-set_bypass(au, false)  # Re-enable the effect
+setbypass!(au, true)   # Bypass the effect
+setbypass!(au, false)  # Re-enable the effect
 ```
 """
-function set_bypass(au::AudioUnit, bypass::Bool)
+function setbypass!(au::AudioUnit, bypass::Bool)
     value = Ref{UInt32}(bypass ? 1 : 0)
     size = Ref{UInt32}(4)
 

@@ -1,7 +1,7 @@
 # AudioUnit documentation and information retrieval
 
 """
-    get_documentation(au::AudioUnit) -> String
+    documentation(au::AudioUnit) -> String
 
 Get basic documentation and information about an AudioUnit.
 
@@ -13,11 +13,11 @@ Returns a formatted string with:
 
 # Examples
 ```julia
-au = load_audiounit("AULowpass")
-println(get_documentation(au))
+au = load("AULowpass")
+println(documentation(au))
 ```
 """
-function get_documentation(au::AudioUnit)
+function documentation(au::AudioUnit)
     io = IOBuffer()
 
     println(io, "=" ^ 70)
@@ -39,14 +39,14 @@ function get_documentation(au::AudioUnit)
 
     # Capabilities
     println(io, "Capabilities:")
-    println(io, "  - Effects Processing: ", supports_effects(au) ? "Yes" : "No")
-    println(io, "  - MIDI Input: ", supports_midi(au) ? "Yes" : "No")
-    println(io, "  - Bypass Support: ", can_bypass(au) ? "Yes" : "No")
+    println(io, "  - Effects Processing: ", supportseffects(au) ? "Yes" : "No")
+    println(io, "  - MIDI Input: ", supportsmidi(au) ? "Yes" : "No")
+    println(io, "  - Bypass Support: ", canbypass(au) ? "Yes" : "No")
     println(io)
 
     # Channel configurations
     println(io, "Supported Channel Configurations:")
-    configs = get_channel_capabilities(au)
+    configs = channelcapabilities(au)
     for config in configs
         in_ch = config.input_channels
         out_ch = config.output_channels
@@ -61,22 +61,22 @@ function get_documentation(au::AudioUnit)
 
     # Latency and tail (if initialized)
     if au.initialized
-        latency = get_latency(au)
-        tail = get_tail_time(au)
+        lat = latency(au)
+        tail = tailtime(au)
 
-        if latency > 0
-            println(io, "Latency: ", round(latency * 1000, digits=2), " ms")
+        if lat > 0
+            println(io, "Latency: ", round(lat * 1000, digits=2), " ms")
         end
         if tail > 0
             println(io, "Tail Time: ", round(tail, digits=3), " seconds")
         end
-        if latency > 0 || tail > 0
+        if lat > 0 || tail > 0
             println(io)
         end
     end
 
     # Parameters
-    params = get_parameters(au)
+    params = parameters(au)
 
     if !isempty(params)
         println(io, "Parameters (", length(params), " total):")
@@ -93,7 +93,7 @@ function get_documentation(au::AudioUnit)
             # Show current value if initialized
             if au.initialized
                 try
-                    current = get_parameter_value(au, param.id, scope=param.scope)
+                    current = parametervalue(au, param.id, scope=param.scope)
                     println(io, "  Current: ", current)
                 catch
                     # Some parameters may not be readable
@@ -111,7 +111,7 @@ function get_documentation(au::AudioUnit)
 end
 
 """
-    get_info(au::AudioUnit) -> AudioUnitSummary
+    info(au::AudioUnit) -> AudioUnitSummary
 
 Get structured information about an AudioUnit.
 
@@ -130,17 +130,17 @@ Returns an `AudioUnitSummary` struct with:
 
 # Examples
 ```julia
-info = get_info(au)
-println("AudioUnit: ", info.name, " v", join(info.version, "."))
-println("Parameters: ", info.parameter_count)
+au_info = info(au)
+println("AudioUnit: ", au_info.name, " v", join(au_info.version, "."))
+println("Parameters: ", au_info.parameter_count)
 ```
 """
-function get_info(au::AudioUnit)
+function info(au::AudioUnit)
     major = (au.version >> 16) & 0xFFFF
     minor = (au.version >> 8) & 0xFF
     bugfix = au.version & 0xFF
 
-    params = get_parameters(au)
+    params = parameters(au)
 
     return AudioUnitSummary(
         au.name,
@@ -148,34 +148,34 @@ function get_info(au::AudioUnit)
         au.au_type,
         au.subtype,
         (major, minor, bugfix),
-        supports_effects(au),
-        supports_midi(au),
-        can_bypass(au),
-        get_channel_capabilities(au),
+        supportseffects(au),
+        supportsmidi(au),
+        canbypass(au),
+        channelcapabilities(au),
         length(params),
         au.initialized
     )
 end
 
 """
-    list_all_audiounits(; type::Union{AudioUnitType, Nothing} = nothing) -> String
+    listall(; type::Union{AudioUnitType, Nothing} = nothing) -> String
 
 Get a formatted list of all available AudioUnits on the system.
 
 # Examples
 ```julia
 # List all AudioUnits
-println(list_all_audiounits())
+println(listall())
 
 # List only effects
-println(list_all_audiounits(type=kAudioUnitType_Effect))
+println(listall(type=kAudioUnitType_Effect))
 
 # List only instruments
-println(list_all_audiounits(type=kAudioUnitType_MusicDevice))
+println(listall(type=kAudioUnitType_MusicDevice))
 ```
 """
-function list_all_audiounits(; type::Union{AudioUnitType, Nothing} = nothing)
-    units = find_audiounits(type)
+function listall(; type::Union{AudioUnitType, Nothing} = nothing)
+    units = findaudiounits(type)
 
     io = IOBuffer()
 

@@ -1,7 +1,7 @@
 # Core AudioUnit functionality
 
 """
-    find_audiounits(type::Union{AudioUnitType, Nothing} = nothing) -> Vector{AudioUnitInfo}
+    findaudiounits(type::Union{AudioUnitType, Nothing} = nothing) -> Vector{AudioUnitInfo}
 
 Find all available AudioUnits on the system. Optionally filter by type.
 
@@ -15,16 +15,16 @@ Returns a vector of `AudioUnitInfo` structs with fields:
 # Examples
 ```julia
 # Find all AudioUnits
-all_units = find_audiounits()
+all_units = findaudiounits()
 
 # Find only effect units
-effects = find_audiounits(kAudioUnitType_Effect)
+effects = findaudiounits(kAudioUnitType_Effect)
 
 # Find music devices (instruments)
-instruments = find_audiounits(kAudioUnitType_MusicDevice)
+instruments = findaudiounits(kAudioUnitType_MusicDevice)
 ```
 """
-function find_audiounits(type::Union{AudioUnitType, Nothing} = nothing)
+function findaudiounits(type::Union{AudioUnitType, Nothing} = nothing)
     units = AudioUnitInfo[]
 
     # Create search description
@@ -81,22 +81,22 @@ function find_audiounits(type::Union{AudioUnitType, Nothing} = nothing)
 end
 
 """
-    load_audiounit(name::String) -> AudioUnit
-    load_audiounit(type::AudioUnitType, subtype::UInt32) -> AudioUnit
+    load(name::String) -> AudioUnit
+    load(type::AudioUnitType, subtype::UInt32) -> AudioUnit
 
 Load an AudioUnit by name or by type and subtype.
 
 # Examples
 ```julia
 # Load by name
-au = load_audiounit("AULowpass")
+au = load("AULowpass")
 
 # Load by type and subtype
-au = load_audiounit(kAudioUnitType_Effect, 0x6c706173)  # 'lpas'
+au = load(kAudioUnitType_Effect, 0x6c706173)  # 'lpas'
 ```
 """
-function load_audiounit(name::String)
-    units = find_audiounits()
+function load(name::String)
+    units = findaudiounits()
     idx = findfirst(u -> u.name == name, units)
 
     if isnothing(idx)
@@ -104,10 +104,10 @@ function load_audiounit(name::String)
     end
 
     unit = units[idx]
-    return load_audiounit(unit.type, unit.subtype)
+    return load(unit.type, unit.subtype)
 end
 
-function load_audiounit(type::AudioUnitType, subtype::UInt32)
+function load(type::AudioUnitType, subtype::UInt32)
     # Create search description
     desc = AudioComponentDescription(UInt32(type), subtype, 0, 0, 0)
 
@@ -139,13 +139,13 @@ function load_audiounit(type::AudioUnitType, subtype::UInt32)
 end
 
 """
-    initialize_audiounit(au::AudioUnit) -> Bool
+    initialize(au::AudioUnit) -> Bool
 
 Initialize an AudioUnit for processing. Must be called before using the unit.
 
 Returns `true` on success, `false` otherwise.
 """
-function initialize_audiounit(au::AudioUnit)
+function initialize(au::AudioUnit)
     if au.initialized
         @warn "AudioUnit already initialized"
         return true
@@ -164,13 +164,13 @@ function initialize_audiounit(au::AudioUnit)
 end
 
 """
-    uninitialize_audiounit(au::AudioUnit) -> Bool
+    uninitialize(au::AudioUnit) -> Bool
 
 Uninitialize an AudioUnit. Can be called before reconfiguring parameters.
 
 Returns `true` on success, `false` otherwise.
 """
-function uninitialize_audiounit(au::AudioUnit)
+function uninitialize(au::AudioUnit)
     if !au.initialized
         return true
     end
@@ -188,13 +188,13 @@ function uninitialize_audiounit(au::AudioUnit)
 end
 
 """
-    dispose_audiounit(au::AudioUnit)
+    dispose(au::AudioUnit)
 
 Dispose of an AudioUnit instance and free its resources.
 """
-function dispose_audiounit(au::AudioUnit)
+function dispose(au::AudioUnit)
     if au.initialized
-        uninitialize_audiounit(au)
+        uninitialize(au)
     end
 
     if au.instance != C_NULL

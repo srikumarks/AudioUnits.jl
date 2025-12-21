@@ -27,6 +27,5 @@ include("documentation.jl")
 include("display.jl")
 include("midi.jl")
 include("graph.jl")
-include("api.jl")
 
 end # module

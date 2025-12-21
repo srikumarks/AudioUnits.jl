@@ -1,7 +1,7 @@
 # AudioUnit parameter management
 
 """
-    get_parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global) -> Vector{AudioUnitParameter}
+    parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global) -> Vector{AudioUnitParameter}
 
 Get all parameters for an AudioUnit in the specified scope.
 
@@ -14,8 +14,8 @@ A vector of `AudioUnitParameter` objects containing parameter information.
 
 # Examples
 ```julia
-au = load_audiounit("AULowpass")
-params = get_parameters(au)
+au = load("AULowpass")
+params = parameters(au)
 
 for param in params
     println("Parameter: ", param.info.name)
@@ -24,29 +24,29 @@ for param in params
 end
 ```
 """
-function get_parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global)
+function parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global)
     # Get parameter list
     param_ids = get_parameter_list(au.instance, scope)
 
-    parameters = AudioUnitParameter[]
+    params = AudioUnitParameter[]
 
     for param_id in param_ids
-        info = get_parameter_info(au, param_id, scope)
+        info = parameterinfo(au, param_id, scope)
         if !isnothing(info)
-            push!(parameters, AudioUnitParameter(param_id, scope, 0, info))
+            push!(params, AudioUnitParameter(param_id, scope, 0, info))
         end
     end
 
-    return parameters
+    return params
 end
 
 """
-    get_parameter_info(au::AudioUnit, param_id::UInt32, scope::UInt32 = kAudioUnitScope_Global) -> Union{AudioUnitParameterInfo, Nothing}
+    parameterinfo(au::AudioUnit, param_id::UInt32, scope::UInt32 = kAudioUnitScope_Global) -> Union{AudioUnitParameterInfo, Nothing}
 
 Get detailed information about a specific parameter.
 """
-function get_parameter_info(au::AudioUnit, param_id::UInt32,
-                           scope::UInt32 = kAudioUnitScope_Global)
+function parameterinfo(au::AudioUnit, param_id::UInt32,
+                      scope::UInt32 = kAudioUnitScope_Global)
     # AudioUnitParameterInfo structure in C
     # We'll use a buffer to receive the data
     info_size = Ref{UInt32}(256)  # Size of buffer
@@ -102,18 +102,18 @@ function get_parameter_info(au::AudioUnit, param_id::UInt32,
 end
 
 """
-    get_parameter_value(au::AudioUnit, param_id::UInt32; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Float32
+    parametervalue(au::AudioUnit, param_id::UInt32; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Float32
 
 Get the current value of a parameter.
 
 # Examples
 ```julia
-value = get_parameter_value(au, param_id)
+value = parametervalue(au, param_id)
 ```
 """
-function get_parameter_value(au::AudioUnit, param_id::UInt32;
-                            scope::UInt32 = kAudioUnitScope_Global,
-                            element::UInt32 = 0)
+function parametervalue(au::AudioUnit, param_id::UInt32;
+                       scope::UInt32 = kAudioUnitScope_Global,
+                       element::UInt32 = 0)
     value = Ref{Float32}()
 
     status = ccall((:AudioUnitGetParameter, AudioToolbox), Int32,
@@ -128,7 +128,7 @@ function get_parameter_value(au::AudioUnit, param_id::UInt32;
 end
 
 """
-    set_parameter_value(au::AudioUnit, param_id::UInt32, value::Real; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Bool
+    setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Bool
 
 Set the value of a parameter.
 
@@ -137,12 +137,12 @@ Returns `true` on success, `false` otherwise.
 # Examples
 ```julia
 # Set parameter to 0.5
-set_parameter_value(au, param_id, 0.5)
+setparametervalue!(au, param_id, 0.5)
 ```
 """
-function set_parameter_value(au::AudioUnit, param_id::UInt32, value::Real;
-                            scope::UInt32 = kAudioUnitScope_Global,
-                            element::UInt32 = 0)
+function setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real;
+                           scope::UInt32 = kAudioUnitScope_Global,
+                           element::UInt32 = 0)
     status = ccall((:AudioUnitSetParameter, AudioToolbox), Int32,
                   (Ptr{Cvoid}, UInt32, UInt32, UInt32, Float32, UInt32),
                   au.instance, param_id, scope, element, Float32(value), 0)
