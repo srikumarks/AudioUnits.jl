@@ -183,7 +183,7 @@ disposegraph!(graph)
 
 ### Driven Mode (Offline Processing)
 
-In driven mode, you provide input buffers and get processed output synchronously:
+In driven mode, you provide input buffers and get processed output synchronously. This works with **any buffer size**, including small buffers (64, 128 samples) for low-latency streaming:
 
 ```julia
 using AudioUnits
@@ -193,11 +193,20 @@ using SampledSignals
 au = load("AULowpass")
 initialize(au)
 
-# Create test signal
-input = SampleBuf(randn(Float32, 2, 44100), 44100)
+# Process with any buffer size - large buffers for batch processing
+input_large = SampleBuf(randn(Float32, 2, 44100), 44100)
+output_large = processbuffer(au, input_large)
 
-# Process synchronously
-output = processbuffer(au, input)
+# Or small buffers for streaming (64, 128, 256 samples)
+input_small = SampleBuf(randn(Float32, 2, 128), 44100)
+output_small = processbuffer(au, input_small)
+
+# Process multiple small buffers in sequence - state is maintained
+for i in 1:100
+    chunk = SampleBuf(randn(Float32, 2, 128), 44100)
+    processed = processbuffer(au, chunk)
+    # ... use processed audio
+end
 
 # Clean up
 uninitialize(au)
@@ -205,12 +214,13 @@ dispose(au)
 ```
 
 The driven mode is perfect for:
-- Batch processing audio files
-- Audio analysis and visualization
-- Non-realtime rendering
-- Automated testing
+- **Streaming processing**: Small buffers (64-128 samples) for low-latency applications
+- **Batch processing**: Large buffers for processing entire audio files
+- **Audio analysis**: Any buffer size for visualization and feature extraction
+- **Non-realtime rendering**: Precise offline processing
+- **Automated testing**: Predictable, synchronous processing
 
-See `examples/realtime_graph.jl` and `examples/driven_graph.jl` for detailed examples.
+See `examples/realtime_graph.jl`, `examples/driven_graph.jl`, and `examples/streaming_example.jl` for detailed examples.
 
 ## API Reference
 
@@ -374,6 +384,7 @@ See the `examples/` directory for detailed usage examples:
 - `midi_example.jl` - Comprehensive MIDI functionality demonstration with DLSMusicDevice
 - `realtime_graph.jl` - Realtime audio processing with AUGraph and hardware I/O
 - `driven_graph.jl` - Offline/driven audio processing with SampleBuf
+- `streaming_example.jl` - Small buffer streaming (64, 128 samples) for low-latency processing
 - `display_demo.jl` - Demonstration of display functionality for terminal and Jupyter
 - `notebook_example.md` - Guide for using AudioUnits.jl in Jupyter notebooks with HTML rendering
 
