@@ -139,8 +139,8 @@ connect!(graph, node1, node2)
 connect!(graph, node1, node2, source_bus=0, dest_bus=1)
 ```
 """
-function Base.connect!(graph::AudioGraph, source_node::Int32, dest_node::Int32;
-                      source_bus::UInt32=UInt32(0), dest_bus::UInt32=UInt32(0))
+function connect!(graph::AudioGraph, source_node::Int32, dest_node::Int32;
+                  source_bus::UInt32=UInt32(0), dest_bus::UInt32=UInt32(0))
     status = ccall((:AUGraphConnectNodeInput, AudioToolbox), Int32,
                   (Ptr{Cvoid}, Int32, UInt32, Int32, UInt32),
                   graph.graph, source_node, source_bus, dest_node, dest_bus)

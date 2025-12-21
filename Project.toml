@@ -1,12 +1,12 @@
 name = "AudioUnits"
 uuid = "8b8c5e3a-1e4d-4c5f-9a3b-2d7e6f8c9a1b"
-authors = ["Your Name <your.email@example.com>"]
 version = "0.1.0"
+authors = ["Your Name <your.email@example.com>"]
 
 [deps]
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-SampledSignals = "bd7594eb-a658-542f-9e75-4bd7a66db7a1"
+SampledSignals = "bd7594eb-a658-542f-9e75-4c4d8908c167"
 
 [compat]
+SampledSignals = "2.1.4"
 julia = "1.6"
-SampledSignals = "2"
