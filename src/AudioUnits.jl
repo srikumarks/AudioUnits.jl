@@ -2,13 +2,14 @@ module AudioUnits
 
 export AudioUnit, AudioUnitParameter, AudioUnitType, AudioUnitParameterInfo
 export AudioUnitInfo, ChannelConfiguration, StreamFormat, AudioUnitSummary
-export find_audiounits, load_audiounit, get_parameters, get_parameter_info
-export supports_effects, supports_midi, get_documentation, get_info
-export get_parameter_value, set_parameter_value
-export get_stream_format, get_channel_capabilities
-export initialize_audiounit, uninitialize_audiounit, dispose_audiounit
-export send_midi_event, note_on, note_off, control_change, program_change
-export pitch_bend, all_notes_off
+export findaudiounits, load, parameters, parameterinfo
+export supportseffects, supportsmidi, documentation, info
+export parametervalue, setparametervalue!
+export streamformat, channelcapabilities
+export initialize, uninitialize, dispose
+export sendmidi, noteon, noteoff, controlchange, programchange
+export pitchbend, allnotesoff
+export canbypass, setbypass!, latency, tailtime, listall
 
 using Libdl
 
@@ -22,5 +23,6 @@ include("capabilities.jl")
 include("documentation.jl")
 include("display.jl")
 include("midi.jl")
+include("api.jl")
 
 end # module

@@ -48,44 +48,44 @@ Pkg.add(url="https://github.com/yourusername/AudioUnits.jl")
 using AudioUnits
 
 # List all available AudioUnits
-all_units = find_audiounits()
+all_units = findaudiounits()
 println("Found ", length(all_units), " AudioUnits")
 
 # Find only effect processors
-effects = find_audiounits(kAudioUnitType_Effect)
+effects = findaudiounits(kAudioUnitType_Effect)
 
 # Find music devices (instruments)
-instruments = find_audiounits(kAudioUnitType_MusicDevice)
+instruments = findaudiounits(kAudioUnitType_MusicDevice)
 
 # Load a specific AudioUnit by name
-au = load_audiounit("AULowpass")
+au = load("AULowpass")
 
 # Initialize it for use
-initialize_audiounit(au)
+initialize(au)
 
 # Get all parameters
-params = get_parameters(au)
+params = parameters(au)
 
 # Get detailed information
-info = get_info(au)
-println("AudioUnit: ", info.name, " v", join(info.version, "."))
-println("Parameters: ", info.parameter_count)
+info_summary = info(au)
+println("AudioUnit: ", info_summary.name, " v", join(info_summary.version, "."))
+println("Parameters: ", info_summary.parameter_count)
 
 # Set a parameter value
 if !isempty(params)
     param = params[1]
-    set_parameter_value(au, param.id, 0.5)
-    current = get_parameter_value(au, param.id)
+    setparametervalue!(au, param.id, 0.5)
+    current = parametervalue(au, param.id)
     println("Parameter value: ", current)
 end
 
 # Generate comprehensive documentation
-doc = get_documentation(au)
+doc = documentation(au)
 println(doc)
 
 # Clean up
-uninitialize_audiounit(au)
-dispose_audiounit(au)
+uninitialize(au)
+dispose(au)
 ```
 
 ## Display in Terminal and Jupyter Notebooks
@@ -97,8 +97,8 @@ AudioUnits.jl provides rich display functionality for both terminal (REPL) and J
 ```julia
 using AudioUnits
 
-au = load_audiounit("AULowpass")
-initialize_audiounit(au)
+au = load("AULowpass")
+initialize(au)
 
 # Display automatically formats for terminal
 display(au)
@@ -118,8 +118,8 @@ In Jupyter notebooks, objects are automatically rendered with beautiful HTML for
 
 ```julia
 # In a Jupyter notebook cell
-au = load_audiounit("AULowpass")
-initialize_audiounit(au)
+au = load("AULowpass")
+initialize(au)
 au  # Displays with rich HTML formatting
 ```
 
@@ -132,7 +132,7 @@ Features:
 ### Display Parameters
 
 ```julia
-params = get_parameters(au)
+params = parameters(au)
 display(params[1])  # Shows parameter details
 ```
 
@@ -143,100 +143,100 @@ See `examples/display_demo.jl` and `examples/notebook_example.md` for more detai
 ### AudioUnit Discovery
 
 ```julia
-find_audiounits([type]) -> Vector{NamedTuple}
+findaudiounits([type]) -> Vector{AudioUnitInfo}
 ```
 Find all AudioUnits, optionally filtered by type.
 
 ```julia
-list_all_audiounits(; type=nothing) -> String
+listall(; type=nothing) -> String
 ```
 Get a formatted list of all available AudioUnits.
 
 ### AudioUnit Loading and Management
 
 ```julia
-load_audiounit(name::String) -> AudioUnit
-load_audiounit(type::AudioUnitType, subtype::UInt32) -> AudioUnit
+load(name::String) -> AudioUnit
+load(type::AudioUnitType, subtype::UInt32) -> AudioUnit
 ```
 Load an AudioUnit by name or type/subtype identifier.
 
 ```julia
-initialize_audiounit(au::AudioUnit) -> Bool
-uninitialize_audiounit(au::AudioUnit) -> Bool
-dispose_audiounit(au::AudioUnit)
+initialize(au::AudioUnit) -> Bool
+uninitialize(au::AudioUnit) -> Bool
+dispose(au::AudioUnit)
 ```
 Initialize, uninitialize, and dispose of AudioUnit instances.
 
 ### Parameter Management
 
 ```julia
-get_parameters(au::AudioUnit; scope=kAudioUnitScope_Global) -> Vector{AudioUnitParameter}
+parameters(au::AudioUnit; scope=kAudioUnitScope_Global) -> Vector{AudioUnitParameter}
 ```
 Get all parameters for an AudioUnit.
 
 ```julia
-get_parameter_info(au::AudioUnit, param_id::UInt32, scope=kAudioUnitScope_Global) -> AudioUnitParameterInfo
+parameterinfo(au::AudioUnit, param_id::UInt32, scope=kAudioUnitScope_Global) -> AudioUnitParameterInfo
 ```
 Get detailed information about a specific parameter.
 
 ```julia
-get_parameter_value(au::AudioUnit, param_id::UInt32; scope, element) -> Float32
-set_parameter_value(au::AudioUnit, param_id::UInt32, value::Real; scope, element) -> Bool
+parametervalue(au::AudioUnit, param_id::UInt32; scope, element) -> Float32
+setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real; scope, element) -> Bool
 ```
 Get or set parameter values.
 
 ### Capability Detection
 
 ```julia
-supports_effects(au::AudioUnit) -> Bool
-supports_midi(au::AudioUnit) -> Bool
-can_bypass(au::AudioUnit) -> Bool
+supportseffects(au::AudioUnit) -> Bool
+supportsmidi(au::AudioUnit) -> Bool
+canbypass(au::AudioUnit) -> Bool
 ```
 Check AudioUnit capabilities.
 
 ```julia
-get_channel_capabilities(au::AudioUnit) -> Vector{NamedTuple}
-get_stream_format(au::AudioUnit; scope, element) -> NamedTuple
-get_latency(au::AudioUnit) -> Float64
-get_tail_time(au::AudioUnit) -> Float64
+channelcapabilities(au::AudioUnit) -> Vector{ChannelConfiguration}
+streamformat(au::AudioUnit; scope, element) -> StreamFormat
+latency(au::AudioUnit) -> Float64
+tailtime(au::AudioUnit) -> Float64
 ```
 Query processing characteristics.
 
 ```julia
-set_bypass(au::AudioUnit, bypass::Bool) -> Bool
+setbypass!(au::AudioUnit, bypass::Bool) -> Bool
 ```
 Enable or disable effect bypass.
 
 ### MIDI Functions
 
 ```julia
-send_midi_event(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8) -> Bool
+sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8) -> Bool
 ```
 Send a raw MIDI event to a music device AudioUnit.
 
 ```julia
-note_on(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0) -> Bool
-note_off(au::AudioUnit, note::Integer; channel::Integer=0) -> Bool
+noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0) -> Bool
+noteoff(au::AudioUnit, note::Integer; channel::Integer=0) -> Bool
 ```
 Send MIDI Note On/Off messages.
 
 ```julia
-control_change(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0) -> Bool
-program_change(au::AudioUnit, program::Integer; channel::Integer=0) -> Bool
-pitch_bend(au::AudioUnit, value::Integer; channel::Integer=0) -> Bool
+controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0) -> Bool
+programchange(au::AudioUnit, program::Integer; channel::Integer=0) -> Bool
+pitchbend(au::AudioUnit, value::Integer; channel::Integer=0) -> Bool
 ```
 Send MIDI Control Change, Program Change, and Pitch Bend messages.
 
 ```julia
-all_notes_off(au::AudioUnit; channel::Integer=0) -> Bool
+allnotesoff(au::AudioUnit; channel::Integer=0) -> Bool
 ```
 Turn off all notes on a MIDI channel.
 
 ### Documentation
 
 ```julia
-get_documentation(au::AudioUnit) -> String
-get_info(au::AudioUnit) -> NamedTuple
+documentation(au::AudioUnit) -> String
+info(au::AudioUnit) -> AudioUnitSummary
 ```
 Retrieve formatted documentation and structured information.
 
