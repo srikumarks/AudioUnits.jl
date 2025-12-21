@@ -22,6 +22,9 @@ This package provides a synchronous, programmatic API without GUI requirements.
 - **AudioUnit Discovery**: Find all AudioUnits or filter by type (effects, instruments, etc.)
 - **Parameter Management**: Get/set parameter values with full metadata (ranges, units, defaults)
 - **MIDI Support**: Send MIDI messages to music device AudioUnits (Note On/Off, Control Change, Program Change, etc.)
+- **Audio Graph (AUGraph)**: Connect AudioUnits in processing chains with two modes:
+  - **Realtime mode**: Automatic hardware I/O with continuous audio processing
+  - **Driven mode**: Synchronous buffer processing with SampleBuf support
 - **Capability Detection**: Determine if a unit supports effects processing or MIDI input
 - **Stream Format Queries**: Retrieve audio format specifications and channel configurations
 - **Documentation Generation**: Automatically generate formatted documentation for any AudioUnit
@@ -138,6 +141,77 @@ display(params[1])  # Shows parameter details
 
 See `examples/display_demo.jl` and `examples/notebook_example.md` for more details.
 
+## Audio Graph (AUGraph)
+
+AudioUnits.jl provides full support for creating and managing Audio Unit Graphs, which allow you to connect multiple AudioUnits together in processing chains.
+
+### Realtime Mode
+
+In realtime mode, the graph automatically processes audio and outputs to hardware:
+
+```julia
+using AudioUnits
+
+# Create graph
+graph = AudioGraph()
+
+# Load instrument
+au = load("DLSMusicDevice")
+music_node = addnode!(graph, au)
+
+# Add output for hardware
+output_node = addoutputnode!(graph)
+
+# Connect nodes
+connect!(graph, music_node, output_node)
+
+# Initialize and start
+initializegraph!(graph)
+initialize(au)
+startgraph!(graph)
+
+# Play MIDI - you'll hear it in realtime!
+noteon(au, 60, 100)
+sleep(2.0)
+noteoff(au, 60)
+
+# Stop and clean up
+stopgraph!(graph)
+uninitialize(au)
+disposegraph!(graph)
+```
+
+### Driven Mode (Offline Processing)
+
+In driven mode, you provide input buffers and get processed output synchronously:
+
+```julia
+using AudioUnits
+using SampledSignals
+
+# Load effect
+au = load("AULowpass")
+initialize(au)
+
+# Create test signal
+input = SampleBuf(randn(Float32, 2, 44100), 44100)
+
+# Process synchronously
+output = processbuffer(au, input)
+
+# Clean up
+uninitialize(au)
+dispose(au)
+```
+
+The driven mode is perfect for:
+- Batch processing audio files
+- Audio analysis and visualization
+- Non-realtime rendering
+- Automated testing
+
+See `examples/realtime_graph.jl` and `examples/driven_graph.jl` for detailed examples.
+
 ## API Reference
 
 ### AudioUnit Discovery
@@ -232,6 +306,43 @@ allnotesoff(au::AudioUnit; channel::Integer=0) -> Bool
 ```
 Turn off all notes on a MIDI channel.
 
+### Audio Graph Functions
+
+```julia
+AudioGraph() -> AudioGraph
+```
+Create a new Audio Unit Graph.
+
+```julia
+addnode!(graph::AudioGraph, au::AudioUnit) -> Int32
+addoutputnode!(graph::AudioGraph) -> Int32
+```
+Add AudioUnit or output nodes to the graph. Returns node ID.
+
+```julia
+connect!(graph::AudioGraph, source_node::Int32, dest_node::Int32; source_bus=0, dest_bus=0) -> Bool
+```
+Connect two nodes in the graph.
+
+```julia
+initializegraph!(graph::AudioGraph) -> Bool
+uninitializegraph!(graph::AudioGraph) -> Bool
+disposegraph!(graph::AudioGraph) -> Bool
+```
+Initialize, uninitialize, and dispose of graphs.
+
+```julia
+startgraph!(graph::AudioGraph) -> Bool
+stopgraph!(graph::AudioGraph) -> Bool
+```
+Start and stop realtime audio processing.
+
+```julia
+processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf) -> SampleBuf
+processbuffer(au::AudioUnit, input::SampleBuf) -> SampleBuf
+```
+Process audio through a graph node or standalone AudioUnit in driven mode.
+
 ### Documentation
 
 ```julia
@@ -261,6 +372,8 @@ See the `examples/` directory for detailed usage examples:
 - `advanced_usage.jl` - Advanced features including parameter manipulation and capability detection
 - `simple_midi.jl` - Quick start guide for sending MIDI messages to music devices
 - `midi_example.jl` - Comprehensive MIDI functionality demonstration with DLSMusicDevice
+- `realtime_graph.jl` - Realtime audio processing with AUGraph and hardware I/O
+- `driven_graph.jl` - Offline/driven audio processing with SampleBuf
 - `display_demo.jl` - Demonstration of display functionality for terminal and Jupyter
 - `notebook_example.md` - Guide for using AudioUnits.jl in Jupyter notebooks with HTML rendering
 
@@ -275,6 +388,8 @@ The package uses Julia's `ccall` interface to communicate with the macOS AudioTo
 - `documentation.jl` - Documentation generation and formatting
 - `display.jl` - Base.show implementations for terminal and Jupyter notebook display
 - `midi.jl` - MIDI message sending functionality for music device AudioUnits
+- `graph.jl` - AUGraph support for realtime and driven audio processing
+- `api.jl` - Public API with Julia naming conventions
 
 ## Notes
 
@@ -282,7 +397,8 @@ The package uses Julia's `ccall` interface to communicate with the macOS AudioTo
 - Always dispose of AudioUnits when done to free system resources
 - Some parameters may be read-only or have special constraints
 - Not all AudioUnits support all features (bypass, MIDI, etc.)
-- **MIDI Note**: While MIDI messages can be sent to music devices, actual audio output requires setting up an AUGraph (Audio Unit Graph) to connect the music device to an output unit. This functionality may be added in future versions.
+- **Audio I/O**: For realtime audio output, use `AudioGraph` to connect AudioUnits to hardware I/O
+- **Buffer Processing**: `processbuffer()` expects stereo `SampleBuf{T, 2}` (channels × samples format)
 
 ## License
 

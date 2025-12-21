@@ -2,6 +2,7 @@ module AudioUnits
 
 export AudioUnit, AudioUnitParameter, AudioUnitType, AudioUnitParameterInfo
 export AudioUnitInfo, ChannelConfiguration, StreamFormat, AudioUnitSummary
+export AudioGraph
 export findaudiounits, load, parameters, parameterinfo
 export supportseffects, supportsmidi, documentation, info
 export parametervalue, setparametervalue!
@@ -10,6 +11,8 @@ export initialize, uninitialize, dispose
 export sendmidi, noteon, noteoff, controlchange, programchange
 export pitchbend, allnotesoff
 export canbypass, setbypass!, latency, tailtime, listall
+export addnode!, addoutputnode!, connect!, initializegraph!, uninitializegraph!
+export disposegraph!, startgraph!, stopgraph!, processbuffer
 
 using Libdl
 
@@ -23,6 +26,7 @@ include("capabilities.jl")
 include("documentation.jl")
 include("display.jl")
 include("midi.jl")
+include("graph.jl")
 include("api.jl")
 
 end # module
