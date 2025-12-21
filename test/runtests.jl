@@ -184,4 +184,84 @@ using Test
             dispose_audiounit(au)
         end
     end
+
+    @testset "Display Methods" begin
+        all_units = find_audiounits()
+        if !isempty(all_units)
+            au = load_audiounit(all_units[1].type, all_units[1].subtype)
+
+            # Test compact display
+            io = IOBuffer()
+            show(io, au)
+            output = String(take!(io))
+            @test occursin("AudioUnit", output)
+            @test occursin(au.name, output)
+
+            # Test plain text display
+            io = IOBuffer()
+            show(io, MIME("text/plain"), au)
+            output = String(take!(io))
+            @test occursin(au.name, output)
+            @test occursin("Manufacturer", output)
+            @test occursin("Capabilities", output)
+
+            # Test HTML display
+            io = IOBuffer()
+            show(io, MIME("text/html"), au)
+            output = String(take!(io))
+            @test occursin("<div", output)
+            @test occursin(au.name, output)
+            @test occursin("AudioUnit", output)
+
+            # Test parameter display
+            params = get_parameters(au)
+            if !isempty(params)
+                param = params[1]
+
+                # Compact display
+                io = IOBuffer()
+                show(io, param)
+                output = String(take!(io))
+                @test occursin("AudioUnitParameter", output)
+
+                # Plain text display
+                io = IOBuffer()
+                show(io, MIME("text/plain"), param)
+                output = String(take!(io))
+                @test occursin(param.info.name, output)
+                @test occursin("Range", output)
+
+                # HTML display
+                io = IOBuffer()
+                show(io, MIME("text/html"), param)
+                output = String(take!(io))
+                @test occursin("<div", output)
+                @test occursin(param.info.name, output)
+
+                # Test parameter info display
+                info = param.info
+
+                # Compact display
+                io = IOBuffer()
+                show(io, info)
+                output = String(take!(io))
+                @test occursin("AudioUnitParameterInfo", output)
+
+                # Plain text display
+                io = IOBuffer()
+                show(io, MIME("text/plain"), info)
+                output = String(take!(io))
+                @test occursin(info.name, output)
+
+                # HTML display
+                io = IOBuffer()
+                show(io, MIME("text/html"), info)
+                output = String(take!(io))
+                @test occursin("<div", output)
+                @test occursin(info.name, output)
+            end
+
+            dispose_audiounit(au)
+        end
+    end
 end

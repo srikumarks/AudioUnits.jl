@@ -16,5 +16,6 @@ include("core.jl")
 include("parameters.jl")
 include("capabilities.jl")
 include("documentation.jl")
+include("display.jl")
 
 end # module

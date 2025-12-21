@@ -21,6 +21,7 @@ This package provides a synchronous, programmatic API without GUI requirements.
 - **Capability Detection**: Determine if a unit supports effects processing or MIDI input
 - **Stream Format Queries**: Retrieve audio format specifications and channel configurations
 - **Documentation Generation**: Automatically generate formatted documentation for any AudioUnit
+- **Rich Display Support**: Beautiful text and HTML displays for terminal and Jupyter notebooks
 - **Bypass Mode**: Enable/disable effect bypass where supported
 - **Latency Information**: Query processing latency and tail time
 
@@ -82,6 +83,56 @@ println(doc)
 uninitialize_audiounit(au)
 dispose_audiounit(au)
 ```
+
+## Display in Terminal and Jupyter Notebooks
+
+AudioUnits.jl provides rich display functionality for both terminal (REPL) and Jupyter notebooks:
+
+### Terminal Display
+
+```julia
+using AudioUnits
+
+au = load_audiounit("AULowpass")
+initialize_audiounit(au)
+
+# Display automatically formats for terminal
+display(au)
+```
+
+Displays a formatted box with:
+- AudioUnit name and status
+- Basic information (manufacturer, type, version)
+- Capabilities with checkmarks (✓/✗)
+- Channel configurations
+- Performance metrics (latency, tail time)
+- Parameter summary
+
+### Jupyter Notebook Display
+
+In Jupyter notebooks, objects are automatically rendered with beautiful HTML formatting:
+
+```julia
+# In a Jupyter notebook cell
+au = load_audiounit("AULowpass")
+initialize_audiounit(au)
+au  # Displays with rich HTML formatting
+```
+
+Features:
+- Color-coded status badges
+- Two-column grid layout
+- Scrollable parameter tables
+- Professional styling with inline CSS
+
+### Display Parameters
+
+```julia
+params = get_parameters(au)
+display(params[1])  # Shows parameter details
+```
+
+See `examples/display_demo.jl` and `examples/notebook_example.md` for more details.
 
 ## API Reference
 
@@ -179,6 +230,8 @@ See the `examples/` directory for detailed usage examples:
 
 - `basic_usage.jl` - Introduction to basic AudioUnit operations
 - `advanced_usage.jl` - Advanced features including parameter manipulation and capability detection
+- `display_demo.jl` - Demonstration of display functionality for terminal and Jupyter
+- `notebook_example.md` - Guide for using AudioUnits.jl in Jupyter notebooks with HTML rendering
 
 ## Architecture
 
@@ -189,6 +242,7 @@ The package uses Julia's `ccall` interface to communicate with the macOS AudioTo
 - `parameters.jl` - Parameter querying and manipulation
 - `capabilities.jl` - Capability detection and stream format queries
 - `documentation.jl` - Documentation generation and formatting
+- `display.jl` - Base.show implementations for terminal and Jupyter notebook display
 
 ## Notes
 
