@@ -21,6 +21,7 @@ This package provides a synchronous, programmatic API without GUI requirements.
 
 - **AudioUnit Discovery**: Find all AudioUnits or filter by type (effects, instruments, etc.)
 - **Parameter Management**: Get/set parameter values with full metadata (ranges, units, defaults)
+- **MIDI Support**: Send MIDI messages to music device AudioUnits (Note On/Off, Control Change, Program Change, etc.)
 - **Capability Detection**: Determine if a unit supports effects processing or MIDI input
 - **Stream Format Queries**: Retrieve audio format specifications and channel configurations
 - **Documentation Generation**: Automatically generate formatted documentation for any AudioUnit
@@ -206,6 +207,31 @@ set_bypass(au::AudioUnit, bypass::Bool) -> Bool
 ```
 Enable or disable effect bypass.
 
+### MIDI Functions
+
+```julia
+send_midi_event(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8) -> Bool
+```
+Send a raw MIDI event to a music device AudioUnit.
+
+```julia
+note_on(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0) -> Bool
+note_off(au::AudioUnit, note::Integer; channel::Integer=0) -> Bool
+```
+Send MIDI Note On/Off messages.
+
+```julia
+control_change(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0) -> Bool
+program_change(au::AudioUnit, program::Integer; channel::Integer=0) -> Bool
+pitch_bend(au::AudioUnit, value::Integer; channel::Integer=0) -> Bool
+```
+Send MIDI Control Change, Program Change, and Pitch Bend messages.
+
+```julia
+all_notes_off(au::AudioUnit; channel::Integer=0) -> Bool
+```
+Turn off all notes on a MIDI channel.
+
 ### Documentation
 
 ```julia
@@ -233,6 +259,8 @@ See the `examples/` directory for detailed usage examples:
 
 - `basic_usage.jl` - Introduction to basic AudioUnit operations
 - `advanced_usage.jl` - Advanced features including parameter manipulation and capability detection
+- `simple_midi.jl` - Quick start guide for sending MIDI messages to music devices
+- `midi_example.jl` - Comprehensive MIDI functionality demonstration with DLSMusicDevice
 - `display_demo.jl` - Demonstration of display functionality for terminal and Jupyter
 - `notebook_example.md` - Guide for using AudioUnits.jl in Jupyter notebooks with HTML rendering
 
@@ -246,6 +274,7 @@ The package uses Julia's `ccall` interface to communicate with the macOS AudioTo
 - `capabilities.jl` - Capability detection and stream format queries
 - `documentation.jl` - Documentation generation and formatting
 - `display.jl` - Base.show implementations for terminal and Jupyter notebook display
+- `midi.jl` - MIDI message sending functionality for music device AudioUnits
 
 ## Notes
 
@@ -253,6 +282,7 @@ The package uses Julia's `ccall` interface to communicate with the macOS AudioTo
 - Always dispose of AudioUnits when done to free system resources
 - Some parameters may be read-only or have special constraints
 - Not all AudioUnits support all features (bypass, MIDI, etc.)
+- **MIDI Note**: While MIDI messages can be sent to music devices, actual audio output requires setting up an AUGraph (Audio Unit Graph) to connect the music device to an output unit. This functionality may be added in future versions.
 
 ## License
 
