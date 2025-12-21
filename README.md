@@ -1,3 +1,6 @@
+**NOTE**:  This project is mostly generated through interactions with Claude Code.
+The history files are included in `claude/` for reference and future work.
+
 # AudioUnits.jl
 
 A Julia package for interfacing with macOS AudioUnits, providing access to audio effects processors and music synthesis devices.
