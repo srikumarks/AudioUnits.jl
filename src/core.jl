@@ -1,11 +1,11 @@
 # Core AudioUnit functionality
 
 """
-    find_audiounits(type::Union{AudioUnitType, Nothing} = nothing) -> Vector{NamedTuple}
+    find_audiounits(type::Union{AudioUnitType, Nothing} = nothing) -> Vector{AudioUnitInfo}
 
 Find all available AudioUnits on the system. Optionally filter by type.
 
-Returns a vector of NamedTuples with fields:
+Returns a vector of `AudioUnitInfo` structs with fields:
 - `name`: The AudioUnit name
 - `manufacturer`: The manufacturer name
 - `type`: The AudioUnitType
@@ -25,8 +25,7 @@ instruments = find_audiounits(kAudioUnitType_MusicDevice)
 ```
 """
 function find_audiounits(type::Union{AudioUnitType, Nothing} = nothing)
-    units = NamedTuple{(:name, :manufacturer, :type, :subtype, :version),
-                       Tuple{String, String, AudioUnitType, UInt32, UInt32}}[]
+    units = AudioUnitInfo[]
 
     # Create search description
     desc = if isnothing(type)
@@ -69,12 +68,12 @@ function find_audiounits(type::Union{AudioUnitType, Nothing} = nothing)
             continue  # Skip unknown types
         end
 
-        push!(units, (
-            name = name,
-            manufacturer = manufacturer,
-            type = au_type,
-            subtype = comp_desc[].componentSubType,
-            version = version
+        push!(units, AudioUnitInfo(
+            name,
+            manufacturer,
+            au_type,
+            comp_desc[].componentSubType,
+            version
         ))
     end
 

@@ -6,7 +6,12 @@ using Test
         # Test finding all AudioUnits
         all_units = find_audiounits()
         @test length(all_units) > 0
-        @test all(haskey.(Ref(all_units[1]), [:name, :manufacturer, :type, :subtype, :version]))
+        @test all_units[1] isa AudioUnitInfo
+        @test all_units[1].name isa String
+        @test all_units[1].manufacturer isa String
+        @test all_units[1].type isa AudioUnitType
+        @test all_units[1].subtype isa UInt32
+        @test all_units[1].version isa UInt32
 
         # Test filtering by type
         effects = find_audiounits(kAudioUnitType_Effect)
@@ -95,8 +100,10 @@ using Test
             @test supports_midi(au) == false
 
             configs = get_channel_capabilities(au)
-            @test configs isa Vector
+            @test configs isa Vector{ChannelConfiguration}
             @test !isempty(configs)
+            @test configs[1].input_channels isa Int16
+            @test configs[1].output_channels isa Int16
 
             dispose_audiounit(au)
         end
@@ -118,6 +125,7 @@ using Test
 
             # Test get_info
             info = get_info(au)
+            @test info isa AudioUnitSummary
             @test info.name isa String
             @test info.manufacturer isa String
             @test info.version isa Tuple{UInt16, UInt8, UInt8}
@@ -148,6 +156,7 @@ using Test
 
             # Test stream format
             format = get_stream_format(au)
+            @test format isa StreamFormat
             @test format.sample_rate > 0
             @test format.channels_per_frame > 0
 

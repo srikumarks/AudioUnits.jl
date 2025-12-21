@@ -51,11 +51,11 @@ function supports_midi(au::AudioUnit)
 end
 
 """
-    get_stream_format(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Output, element::UInt32 = 0) -> NamedTuple
+    get_stream_format(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Output, element::UInt32 = 0) -> StreamFormat
 
 Get the audio stream format for an AudioUnit.
 
-Returns a NamedTuple with format information:
+Returns a `StreamFormat` struct with format information:
 - `sample_rate`: Sample rate in Hz
 - `format_id`: Audio format identifier
 - `format_flags`: Format flags
@@ -110,24 +110,24 @@ function get_stream_format(au::AudioUnit;
     channels_per_frame = unsafe_load(Ptr{UInt32}(ptr + 28))
     bits_per_channel = unsafe_load(Ptr{UInt32}(ptr + 32))
 
-    return (
-        sample_rate = sample_rate,
-        format_id = format_id,
-        format_flags = format_flags,
-        bytes_per_packet = bytes_per_packet,
-        frames_per_packet = frames_per_packet,
-        bytes_per_frame = bytes_per_frame,
-        channels_per_frame = channels_per_frame,
-        bits_per_channel = bits_per_channel
+    return StreamFormat(
+        sample_rate,
+        format_id,
+        format_flags,
+        bytes_per_packet,
+        frames_per_packet,
+        bytes_per_frame,
+        channels_per_frame,
+        bits_per_channel
     )
 end
 
 """
-    get_channel_capabilities(au::AudioUnit) -> Vector{NamedTuple}
+    get_channel_capabilities(au::AudioUnit) -> Vector{ChannelConfiguration}
 
 Get the supported channel configurations for an AudioUnit.
 
-Returns a vector of NamedTuples, each with:
+Returns a vector of `ChannelConfiguration` structs, each with:
 - `input_channels`: Number of input channels
 - `output_channels`: Number of output channels
 
@@ -153,10 +153,10 @@ function get_channel_capabilities(au::AudioUnit)
         # If property not supported, return default based on type
         if supports_midi(au)
             # Music devices typically output stereo
-            return [(input_channels = 0, output_channels = 2)]
+            return [ChannelConfiguration(0, 2)]
         else
             # Effects typically support various configurations
-            return [(input_channels = 2, output_channels = 2)]
+            return [ChannelConfiguration(2, 2)]
         end
     end
 
@@ -170,16 +170,16 @@ function get_channel_capabilities(au::AudioUnit)
                   kAudioUnitScope_Global, 0, buffer, size)
 
     if status != noErr
-        return NamedTuple{(:input_channels, :output_channels), Tuple{Int16, Int16}}[]
+        return ChannelConfiguration[]
     end
 
-    configs = NamedTuple{(:input_channels, :output_channels), Tuple{Int16, Int16}}[]
+    configs = ChannelConfiguration[]
     ptr = pointer(buffer)
 
     for i in 0:(num_configs-1)
         in_channels = unsafe_load(Ptr{Int16}(ptr + i * 4))
         out_channels = unsafe_load(Ptr{Int16}(ptr + i * 4 + 2))
-        push!(configs, (input_channels = in_channels, output_channels = out_channels))
+        push!(configs, ChannelConfiguration(in_channels, out_channels))
     end
 
     return configs

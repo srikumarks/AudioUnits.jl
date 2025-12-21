@@ -111,11 +111,11 @@ function get_documentation(au::AudioUnit)
 end
 
 """
-    get_info(au::AudioUnit) -> NamedTuple
+    get_info(au::AudioUnit) -> AudioUnitSummary
 
-Get structured information about an AudioUnit as a NamedTuple.
+Get structured information about an AudioUnit.
 
-Returns a NamedTuple with:
+Returns an `AudioUnitSummary` struct with:
 - `name`: AudioUnit name
 - `manufacturer`: Manufacturer name
 - `type`: AudioUnitType
@@ -126,6 +126,7 @@ Returns a NamedTuple with:
 - `can_bypass`: Boolean
 - `channel_configs`: Vector of supported configurations
 - `parameter_count`: Number of parameters
+- `initialized`: Initialization status
 
 # Examples
 ```julia
@@ -141,18 +142,18 @@ function get_info(au::AudioUnit)
 
     params = get_parameters(au)
 
-    return (
-        name = au.name,
-        manufacturer = au.manufacturer,
-        type = au.au_type,
-        subtype = au.subtype,
-        version = (major, minor, bugfix),
-        supports_effects = supports_effects(au),
-        supports_midi = supports_midi(au),
-        can_bypass = can_bypass(au),
-        channel_configs = get_channel_capabilities(au),
-        parameter_count = length(params),
-        initialized = au.initialized
+    return AudioUnitSummary(
+        au.name,
+        au.manufacturer,
+        au.au_type,
+        au.subtype,
+        (major, minor, bugfix),
+        supports_effects(au),
+        supports_midi(au),
+        can_bypass(au),
+        get_channel_capabilities(au),
+        length(params),
+        au.initialized
     )
 end
 

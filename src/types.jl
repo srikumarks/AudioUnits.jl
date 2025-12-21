@@ -78,6 +78,64 @@ mutable struct AudioUnit
     end
 end
 
+"""
+    AudioUnitInfo
+
+Information about an available AudioUnit on the system.
+"""
+struct AudioUnitInfo
+    name::String
+    manufacturer::String
+    type::AudioUnitType
+    subtype::UInt32
+    version::UInt32
+end
+
+"""
+    ChannelConfiguration
+
+Describes a supported input/output channel configuration for an AudioUnit.
+"""
+struct ChannelConfiguration
+    input_channels::Int16
+    output_channels::Int16
+end
+
+"""
+    StreamFormat
+
+Audio stream format information for an AudioUnit.
+"""
+struct StreamFormat
+    sample_rate::Float64
+    format_id::UInt32
+    format_flags::UInt32
+    bytes_per_packet::UInt32
+    frames_per_packet::UInt32
+    bytes_per_frame::UInt32
+    channels_per_frame::UInt32
+    bits_per_channel::UInt32
+end
+
+"""
+    AudioUnitSummary
+
+Summary information about an AudioUnit instance.
+"""
+struct AudioUnitSummary
+    name::String
+    manufacturer::String
+    type::AudioUnitType
+    subtype::UInt32
+    version::Tuple{UInt16, UInt8, UInt8}
+    supports_effects::Bool
+    supports_midi::Bool
+    can_bypass::Bool
+    channel_configs::Vector{ChannelConfiguration}
+    parameter_count::Int
+    initialized::Bool
+end
+
 # AudioUnit Property IDs
 const kAudioUnitProperty_ClassInfo = 0
 const kAudioUnitProperty_MakeConnection = 1
