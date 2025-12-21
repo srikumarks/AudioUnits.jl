@@ -158,14 +158,14 @@ const kAudioUnitProperty_HostCallbacks = 27
 const kAudioUnitProperty_CocoaUI = 31
 
 # AudioUnit Scopes
-const kAudioUnitScope_Global = 0
-const kAudioUnitScope_Input = 1
-const kAudioUnitScope_Output = 2
-const kAudioUnitScope_Group = 3
-const kAudioUnitScope_Part = 4
-const kAudioUnitScope_Note = 5
-const kAudioUnitScope_Layer = 6
-const kAudioUnitScope_LayerItem = 7
+const kAudioUnitScope_Global = UInt32(0)
+const kAudioUnitScope_Input = UInt32(1)
+const kAudioUnitScope_Output = UInt32(2)
+const kAudioUnitScope_Group = UInt32(3)
+const kAudioUnitScope_Part = UInt32(4)
+const kAudioUnitScope_Note = UInt32(5)
+const kAudioUnitScope_Layer = UInt32(6)
+const kAudioUnitScope_LayerItem = UInt32(7)
 
 # Parameter Units
 const kAudioUnitParameterUnit_Generic = 0
