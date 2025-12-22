@@ -69,73 +69,73 @@ function sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8; offs
 end
 
 """
-    noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0, offset::UInt32=0)
+    noteon(au::AudioUnit, channel::Integer, note::Integer, velocity::Integer=100; offset::UInt32=0)
 
 Send a MIDI Note On message.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
+- `channel::Integer`: MIDI channel (0-15)
 - `note::Integer`: MIDI note number (0-127, middle C = 60)
 - `velocity::Integer`: Note velocity (0-127, default=100)
-- `channel::Integer`: MIDI channel (0-15, default=0)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 # Examples
 ```julia
 # Play middle C at velocity 100 on channel 0 (immediate)
-noteon(au, 60)
+noteon(au, 0, 60)
 
 # Play A above middle C at sample offset 256
-noteon(au, 69, 64, channel=1, offset=256)
+noteon(au, 1, 69, 64, offset=256)
 ```
 """
-function noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0, offset::UInt32=0)
+function noteon(au::AudioUnit, channel::Integer, note::Integer, velocity::Integer=100; offset::UInt32=0)
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
     @assert 0 <= velocity <= 127 "Velocity must be in range 0-127, got $velocity"
-    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0x90 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(note), UInt8(velocity); offset=offset)
 end
 
 """
-    noteoff(au::AudioUnit, note::Integer; channel::Integer=0, offset::UInt32=0)
+    noteoff(au::AudioUnit, channel::Integer, note::Integer; offset::UInt32=0)
 
 Send a MIDI Note Off message.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
+- `channel::Integer`: MIDI channel (0-15)
 - `note::Integer`: MIDI note number (0-127)
-- `channel::Integer`: MIDI channel (0-15, default=0)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 # Examples
 ```julia
-# Stop middle C on channel 0 (immediate)
-noteoff(au, 60)
+# Stop middle C on channel 0
+noteoff(au, 0, 60)
 
 # Stop A above middle C at sample offset 512
-noteoff(au, 69, channel=1, offset=512)
+noteoff(au, 1, 69, offset=512)
 ```
 """
-function noteoff(au::AudioUnit, note::Integer; channel::Integer=0, offset::UInt32=0)
-    @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
+function noteoff(au::AudioUnit, channel::Integer, note::Integer; offset::UInt32=0)
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
+    @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
 
     status = UInt8(0x80 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(note), UInt8(0); offset=offset)
 end
 
 """
-    controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0, offset::UInt32=0)
+    controlchange(au::AudioUnit, channel::Integer, controller::Integer, value::Integer; offset::UInt32=0)
 
 Send a MIDI Control Change message.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
+- `channel::Integer`: MIDI channel (0-15)
 - `controller::Integer`: Controller number (0-127)
 - `value::Integer`: Controller value (0-127)
-- `channel::Integer`: MIDI channel (0-15, default=0)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 Common controllers:
@@ -147,76 +147,76 @@ Common controllers:
 
 # Examples
 ```julia
-# Set volume to 100 on channel 0 (immediate)
-controlchange(au, 7, 100)
+# Set volume to 100 on channel 0
+controlchange(au, 0, 7, 100)
 
 # Enable sustain pedal at sample 256
-controlchange(au, 64, 127, channel=1, offset=256)
+controlchange(au, 1, 64, 127, offset=256)
 ```
 """
-function controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0, offset::UInt32=0)
+function controlchange(au::AudioUnit, channel::Integer, controller::Integer, value::Integer; offset::UInt32=0)
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= controller <= 127 "Controller must be in range 0-127, got $controller"
     @assert 0 <= value <= 127 "Value must be in range 0-127, got $value"
-    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0xB0 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(controller), UInt8(value); offset=offset)
 end
 
 """
-    programchange(au::AudioUnit, program::Integer; channel::Integer=0, offset::UInt32=0)
+    programchange(au::AudioUnit, channel::Integer, program::Integer; offset::UInt32=0)
 
 Send a MIDI Program Change message to change the instrument/preset.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
+- `channel::Integer`: MIDI channel (0-15)
 - `program::Integer`: Program number (0-127)
-- `channel::Integer`: MIDI channel (0-15, default=0)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 # Examples
 ```julia
-# Change to program 0 (usually Acoustic Grand Piano)
-programchange(au, 0)
+# Change to program 0 (usually Acoustic Grand Piano) on channel 0
+programchange(au, 0, 0)
 
 # Change to program 40 (usually Violin) on channel 1 at sample offset 256
-programchange(au, 40, channel=1, offset=256)
+programchange(au, 1, 40, offset=256)
 ```
 """
-function programchange(au::AudioUnit, program::Integer; channel::Integer=0, offset::UInt32=0)
-    @assert 0 <= program <= 127 "Program must be in range 0-127, got $program"
+function programchange(au::AudioUnit, channel::Integer, program::Integer; offset::UInt32=0)
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
+    @assert 0 <= program <= 127 "Program must be in range 0-127, got $program"
 
     status = UInt8(0xC0 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(program), UInt8(0); offset=offset)
 end
 
 """
-    pitchbend(au::AudioUnit, value::Integer; channel::Integer=0, offset::UInt32=0)
+    pitchbend(au::AudioUnit, channel::Integer, value::Integer; offset::UInt32=0)
 
 Send a MIDI Pitch Bend message.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
+- `channel::Integer`: MIDI channel (0-15)
 - `value::Integer`: Pitch bend value (0-16383, center=8192)
-- `channel::Integer`: MIDI channel (0-15, default=0)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 # Examples
 ```julia
-# Center pitch (no bend)
-pitchbend(au, 8192)
+# Center pitch (no bend) on channel 0
+pitchbend(au, 0, 8192)
 
 # Bend up at sample offset 256
-pitchbend(au, 12288, offset=256)
+pitchbend(au, 0, 12288, offset=256)
 
 # Bend down at sample offset 512
-pitchbend(au, 4096, offset=512)
+pitchbend(au, 0, 4096, offset=512)
 ```
 """
-function pitchbend(au::AudioUnit, value::Integer; channel::Integer=0, offset::UInt32=0)
-    @assert 0 <= value <= 16383 "Pitch bend value must be in range 0-16383, got $value"
+function pitchbend(au::AudioUnit, channel::Integer, value::Integer; offset::UInt32=0)
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
+    @assert 0 <= value <= 16383 "Pitch bend value must be in range 0-16383, got $value"
 
     status = UInt8(0xE0 | (channel & 0x0F))
     lsb = UInt8(value & 0x7F)
@@ -225,29 +225,29 @@ function pitchbend(au::AudioUnit, value::Integer; channel::Integer=0, offset::UI
 end
 
 """
-    allnotesoff(au::AudioUnit; channel::Integer=0, offset::UInt32=0)
+    allnotesoff(au::AudioUnit, channel::Integer; offset::UInt32=0)
 
 Turn off all notes on a MIDI channel.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit to send to
-- `channel::Integer`: MIDI channel (0-15, default=0)
+- `channel::Integer`: MIDI channel (0-15)
 - `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
 
 # Examples
 ```julia
 # Stop all notes on channel 0
-allnotesoff(au)
+allnotesoff(au, 0)
 
 # Stop all notes on all channels at sample offset 512
 for ch in 0:15
-    allnotesoff(au, channel=ch, offset=512)
+    allnotesoff(au, ch, offset=512)
 end
 ```
 """
-function allnotesoff(au::AudioUnit; channel::Integer=0, offset::UInt32=0)
+function allnotesoff(au::AudioUnit, channel::Integer; offset::UInt32=0)
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     # CC 123 = All Notes Off
-    return controlchange(au, 123, 0, channel=channel, offset=offset)
+    return controlchange(au, channel, 123, 0, offset=offset)
 end
