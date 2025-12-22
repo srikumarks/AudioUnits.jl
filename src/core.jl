@@ -1,6 +1,35 @@
 # Core AudioUnit functionality
 
 """
+    issupported() -> Bool
+
+Check whether AudioUnits are supported on the current platform.
+
+AudioUnits are only available on macOS (Apple platforms). This function returns
+`true` on macOS and `false` on all other platforms.
+
+The AudioUnits.jl package can be imported on any platform, but attempting to use
+AudioUnit functionality on non-Apple platforms will result in errors. Use this
+function to check platform support before calling other AudioUnits methods.
+
+# Examples
+```julia
+using AudioUnits
+
+if issupported()
+    # Safe to use AudioUnits functionality
+    units = findaudiounits()
+    println("Found ", length(units), " AudioUnits")
+else
+    println("AudioUnits not supported on this platform")
+end
+```
+"""
+function issupported()
+    return Sys.isapple()
+end
+
+"""
     findaudiounits(type::Union{AudioUnitType, Nothing} = nothing) -> Vector{AudioUnitInfo}
 
 Find all available AudioUnits on the system. Optionally filter by type.

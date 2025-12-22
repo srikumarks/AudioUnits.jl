@@ -3,6 +3,7 @@ module AudioUnits
 export AudioUnit, AudioUnitParameter, AudioUnitType, AudioUnitParameterInfo
 export AudioUnitInfo, ChannelConfiguration, StreamFormat, AudioUnitSummary
 export AudioGraph
+export issupported
 export findaudiounits, load, parameters, parameterinfo
 export supportseffects, supportsmidi, documentation, info
 export parametervalue, setparametervalue!

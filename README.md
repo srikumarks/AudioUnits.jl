@@ -37,6 +37,8 @@ This package provides a synchronous, programmatic API without GUI requirements.
 - macOS (AudioUnits are a macOS-specific technology)
 - Julia 1.6 or later
 
+**Cross-Platform Note:** The package can be imported on any platform, but AudioUnit functionality is only available on macOS. Use `issupported()` to check platform support at runtime.
+
 ## Installation
 
 ```julia
@@ -49,6 +51,11 @@ Pkg.add(url="https://github.com/yourusername/AudioUnits.jl")
 
 ```julia
 using AudioUnits
+
+# Check platform support
+if !issupported()
+    error("AudioUnits are only supported on macOS")
+end
 
 # List all available AudioUnits
 all_units = findaudiounits()
@@ -234,6 +241,13 @@ The driven mode is perfect for:
 See `examples/realtime_graph.jl`, `examples/driven_graph.jl`, and `examples/streaming_example.jl` for detailed examples.
 
 ## API Reference
+
+### Platform Support
+
+```julia
+issupported() -> Bool
+```
+Check whether AudioUnits are supported on the current platform. Returns `true` on macOS, `false` otherwise.
 
 ### AudioUnit Discovery
 
