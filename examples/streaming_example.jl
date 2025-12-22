@@ -120,3 +120,61 @@ println("  - Live audio input processing")
 println("  - Network audio streaming")
 println("  - Real-time effect chains")
 println("  - Low-latency music applications")
+
+# Example 5: Zero-allocation streaming with processbuffer!
+println()
+println("Example 5: Zero-allocation streaming with processbuffer!")
+println("-" ^ 70)
+
+# Create effect
+au5 = load("AULowpass")
+initialize(au5)
+
+# Pre-allocate input and output buffers once
+BUFSIZE = 128
+input_buf = SampleBuf(zeros(Float32, 2, BUFSIZE), SAMPLE_RATE)
+output_buf = SampleBuf(zeros(Float32, 2, BUFSIZE), SAMPLE_RATE)
+
+println("Pre-allocated buffers: ", BUFSIZE, " samples each")
+println("Processing ", NUM_BUFFERS, " buffers with zero-allocation in-place processing:")
+
+# Process many buffers without any allocation
+for i in 1:NUM_BUFFERS
+    # Fill input buffer with new data
+    input_buf.data .= randn(Float32, 2, BUFSIZE)
+    
+    # Process in-place - no allocation!
+    processbuffer!(output_buf, au5, input_buf)
+    
+    # Progress indicator
+    if i % 10 == 0
+        println("  Processed ", i, "/", NUM_BUFFERS, " buffers...")
+    end
+end
+
+println("Done!")
+println()
+println("Performance comparison:")
+println("  - processbuffer():  Allocates new output buffer every call")
+println("  - processbuffer!(): Reuses pre-allocated buffer (zero GC pressure)")
+
+# Clean up
+uninitialize(au5)
+dispose(au5)
+
+println()
+println("=" ^ 70)
+println("Streaming examples complete!")
+println()
+println("Key points:")
+println("  - processbuffer() works with any buffer size")
+println("  - Small buffers (64-128) are ideal for low-latency streaming")
+println("  - AudioUnit state is maintained between calls")
+println("  - processbuffer!() eliminates allocations for maximum performance")
+println()
+println("Use cases:")
+println("  - Live audio input processing")
+println("  - Network audio streaming")
+println("  - Real-time effect chains")
+println("  - Low-latency music applications")
+println("  - High-performance batch processing")

@@ -589,3 +589,279 @@ function processbuffer(au::AudioUnit, input::SampleBuf{T, 2}) where T
 
     return SampleBuf(output_data, samplerate)
 end
+
+# ==============================================================================
+# In-Place Processing (Zero-Allocation)
+# ==============================================================================
+
+"""
+    processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
+
+Process audio through a graph node, writing results to a pre-allocated output buffer.
+
+This is an in-place version that avoids allocations, ideal for streaming with small buffers.
+The output buffer is reused across calls, eliminating GC pressure.
+
+# Arguments
+- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
+- `graph::AudioGraph`: The graph containing the node
+- `node::Int32`: The node ID to render
+- `input::SampleBuf`: Input audio buffer
+
+# Returns
+- `SampleBuf`: The output buffer (same object that was passed in)
+
+# Examples
+```julia
+using SampledSignals
+
+# Create graph
+graph = AudioGraph()
+au = load("AULowpass")
+initialize(au)
+node = addnode!(graph, au)
+initializegraph!(graph)
+
+# Pre-allocate buffers once
+sr = 44100
+bufsize = 128
+input = SampleBuf(zeros(Float32, 2, bufsize), sr)
+output = SampleBuf(zeros(Float32, 2, bufsize), sr)
+
+# Process many buffers without allocation
+for i in 1:1000
+    input.data .= randn(Float32, 2, bufsize)  # Fill with new data
+    processbuffer!(output, graph, node, input)  # No allocation!
+    # ... use output
+end
+```
+"""
+function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
+                       input::SampleBuf{T, 2}) where T
+    if !graph.initialized
+        error("Graph must be initialized before processing")
+    end
+
+    # Validate output buffer
+    if size(output) != size(input)
+        error("Output buffer size $(size(output)) must match input size $(size(input))")
+    end
+    if output.samplerate != input.samplerate
+        error("Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)")
+    end
+
+    # Get the AudioUnit from the node
+    au_ref = Ref{Ptr{Cvoid}}()
+    status = ccall((:AUGraphNodeInfo, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, Int32, Ptr{Cvoid}, Ptr{Ptr{Cvoid}}),
+                  graph.graph, node, C_NULL, au_ref)
+
+    if status != noErr
+        error("Failed to get AudioUnit from node: OSStatus $status")
+    end
+
+    au_instance = au_ref[]
+
+    # Get dimensions
+    nchannels = size(input, 1)
+    nframes = size(input, 2)
+
+    # Use existing buffers (no allocation)
+    input_data = collect(input.data)  # Need a copy for the callback
+    output_data = output.data  # Write directly to output buffer
+
+    # Create AudioBufferList structures
+    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
+    input_buffer_list = zeros(UInt8, buffer_list_size)
+    output_buffer_list = zeros(UInt8, buffer_list_size)
+
+    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
+    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
+
+    # Set up buffer pointers
+    for ch in 1:nchannels
+        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
+
+        # Input buffer
+        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))
+        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
+        channel_data = view(input_data, ch, :)
+        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_data))
+
+        # Output buffer - write directly to output.data
+        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
+        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
+        channel_out = view(output_data, ch, :)
+        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
+    end
+
+    # Set up timestamp
+    timestamp = zeros(UInt8, 80)
+    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)
+    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))
+
+    # Set up render callback
+    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
+                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
+        input_list_ptr = Ptr{UInt8}(inRefCon)
+        if ioData != C_NULL && input_list_ptr != C_NULL
+            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
+            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
+        end
+        return 0
+    end
+
+    callback_ptr = @cfunction($render_callback, Int32,
+                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
+
+    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
+
+    # Set render callback
+    ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
+          (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
+          au_instance, UInt32(23), UInt32(1), UInt32(0),
+          callback_struct, UInt32(sizeof(callback_struct)))
+
+    # Render
+    action_flags = Ref{UInt32}(0)
+    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
+                  au_instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
+
+    if status != noErr
+        error("Failed to process audio: OSStatus $status")
+    end
+
+    return output
+end
+
+"""
+    processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
+
+Process audio through a standalone AudioUnit, writing results to a pre-allocated output buffer.
+
+This is an in-place version that avoids allocations, ideal for streaming with small buffers.
+
+# Arguments
+- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
+- `au::AudioUnit`: The AudioUnit to process through
+- `input::SampleBuf`: Input audio buffer
+
+# Returns
+- `SampleBuf`: The output buffer (same object that was passed in)
+
+# Examples
+```julia
+using SampledSignals
+
+au = load("AULowpass")
+initialize(au)
+
+# Pre-allocate buffers once
+sr = 44100
+bufsize = 128
+input = SampleBuf(zeros(Float32, 2, bufsize), sr)
+output = SampleBuf(zeros(Float32, 2, bufsize), sr)
+
+# Process many buffers without allocation
+for i in 1:1000
+    input.data .= randn(Float32, 2, bufsize)  # Fill with new data
+    processbuffer!(output, au, input)  # No allocation!
+    # ... use output
+end
+
+uninitialize(au)
+dispose(au)
+```
+"""
+function processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit,
+                       input::SampleBuf{T, 2}) where T
+    if !au.initialized
+        error("AudioUnit must be initialized before processing")
+    end
+
+    # Validate output buffer
+    if size(output) != size(input)
+        error("Output buffer size $(size(output)) must match input size $(size(input))")
+    end
+    if output.samplerate != input.samplerate
+        error("Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)")
+    end
+
+    # Get dimensions
+    nchannels = size(input, 1)
+    nframes = size(input, 2)
+
+    # Use existing buffers (no allocation)
+    input_data = collect(input.data)  # Need a copy for the callback
+    output_data = output.data  # Write directly to output buffer
+
+    # Create AudioBufferLists
+    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
+    input_buffer_list = zeros(UInt8, buffer_list_size)
+    output_buffer_list = zeros(UInt8, buffer_list_size)
+
+    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
+    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
+
+    for ch in 1:nchannels
+        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
+
+        # Input buffer
+        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))
+        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
+        channel_in = view(input_data, ch, :)
+        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_in))
+
+        # Output buffer - write directly to output.data
+        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
+        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
+        channel_out = view(output_data, ch, :)
+        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
+    end
+
+    # Set up timestamp
+    timestamp = zeros(UInt8, 80)
+    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)
+    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))
+
+    # Set up render callback
+    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
+                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
+        input_list_ptr = Ptr{UInt8}(inRefCon)
+        if ioData != C_NULL && input_list_ptr != C_NULL
+            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
+            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
+        end
+        return 0
+    end
+
+    callback_ptr = @cfunction($render_callback, Int32,
+                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
+
+    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
+
+    # Set render callback on input scope
+    ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
+          (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
+          au.instance, UInt32(23), UInt32(1), UInt32(0),
+          callback_struct, UInt32(sizeof(callback_struct)))
+
+    # Render the output
+    action_flags = Ref{UInt32}(0)
+    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
+                  au.instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
+
+    if status != noErr
+        error("Failed to render audio: OSStatus $status")
+    end
+
+    return output
+end

@@ -12,7 +12,7 @@ export sendmidi, noteon, noteoff, controlchange, programchange
 export pitchbend, allnotesoff
 export canbypass, setbypass!, latency, tailtime, listall
 export addnode!, addoutputnode!, connect!, initializegraph!, uninitializegraph!
-export disposegraph!, startgraph!, stopgraph!, processbuffer
+export disposegraph!, startgraph!, stopgraph!, processbuffer, processbuffer!
 
 using Libdl
 

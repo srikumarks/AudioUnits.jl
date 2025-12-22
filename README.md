@@ -208,6 +208,17 @@ for i in 1:100
     # ... use processed audio
 end
 
+# Zero-allocation streaming with processbuffer! (in-place)
+# Pre-allocate buffers once for maximum performance
+input = SampleBuf(zeros(Float32, 2, 128), 44100)
+output = SampleBuf(zeros(Float32, 2, 128), 44100)
+
+for i in 1:1000
+    input.data .= randn(Float32, 2, 128)  # Fill with new data
+    processbuffer!(output, au, input)      # No allocation!
+    # ... use output
+end
+
 # Clean up
 uninitialize(au)
 dispose(au)
@@ -352,6 +363,12 @@ processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf) -> SampleBuf
 processbuffer(au::AudioUnit, input::SampleBuf) -> SampleBuf
 ```
 Process audio through a graph node or standalone AudioUnit in driven mode.
+
+```julia
+processbuffer!(output::SampleBuf, graph::AudioGraph, node::Int32, input::SampleBuf) -> SampleBuf
+processbuffer!(output::SampleBuf, au::AudioUnit, input::SampleBuf) -> SampleBuf
+```
+In-place processing that writes to a pre-allocated output buffer. Eliminates allocations for high-performance streaming.
 
 ### Documentation
 
