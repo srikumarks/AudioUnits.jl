@@ -102,23 +102,40 @@ function parameterinfo(au::AudioUnit, param_id::UInt32,
 end
 
 """
-    parametervalue(au::AudioUnit, param_id::UInt32; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Float32
+    parametervalue(au::AudioUnit, param_id::UInt32; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0, offset::UInt32 = 0) -> Float32
 
 Get the current value of a parameter.
+
+# Arguments
+- `au::AudioUnit`: The AudioUnit instance
+- `param_id::UInt32`: The parameter ID
+- `scope::UInt32`: The parameter scope (default: Global)
+- `element::UInt32`: The parameter element (default: 0)
+- `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
+
+# Sample Offset Timing
+The `offset` parameter allows sample-accurate scheduling within a render block:
+- 0 = immediate/current value (default)
+- 100 = 100 samples into the block (~2.3ms at 44.1kHz)
+- Provides timing precision of ~23 microseconds at 44.1kHz
 
 # Examples
 ```julia
 value = parametervalue(au, param_id)
+
+# Get parameter value at a specific sample offset
+value_at_offset = parametervalue(au, param_id, offset=256)
 ```
 """
 function parametervalue(au::AudioUnit, param_id::UInt32;
                        scope::UInt32 = kAudioUnitScope_Global,
-                       element::UInt32 = 0)
+                       element::UInt32 = 0,
+                       offset::UInt32 = 0)
     value = Ref{Float32}()
 
     status = ccall((:AudioUnitGetParameter, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{Float32}),
-                  au.instance, param_id, scope, element, value)
+                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{Float32}, UInt32),
+                  au.instance, param_id, scope, element, value, offset)
 
     if status != noErr
         error("Failed to get parameter value: OSStatus $status")
@@ -128,24 +145,42 @@ function parametervalue(au::AudioUnit, param_id::UInt32;
 end
 
 """
-    setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0) -> Bool
+    setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real; scope::UInt32 = kAudioUnitScope_Global, element::UInt32 = 0, offset::UInt32 = 0) -> Bool
 
 Set the value of a parameter.
 
 Returns `true` on success, `false` otherwise.
 
+# Arguments
+- `au::AudioUnit`: The AudioUnit instance
+- `param_id::UInt32`: The parameter ID
+- `value::Real`: The parameter value to set
+- `scope::UInt32`: The parameter scope (default: Global)
+- `element::UInt32`: The parameter element (default: 0)
+- `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
+
+# Sample Offset Timing
+The `offset` parameter allows sample-accurate scheduling within a render block:
+- 0 = immediate (default)
+- 100 = 100 samples into the block (~2.3ms at 44.1kHz)
+- Provides timing precision of ~23 microseconds at 44.1kHz
+
 # Examples
 ```julia
-# Set parameter to 0.5
+# Set parameter to 0.5 immediately
 setparametervalue!(au, param_id, 0.5)
+
+# Set parameter at a specific sample offset
+setparametervalue!(au, param_id, 0.5, offset=256)
 ```
 """
 function setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real;
                            scope::UInt32 = kAudioUnitScope_Global,
-                           element::UInt32 = 0)
+                           element::UInt32 = 0,
+                           offset::UInt32 = 0)
     status = ccall((:AudioUnitSetParameter, AudioToolbox), Int32,
                   (Ptr{Cvoid}, UInt32, UInt32, UInt32, Float32, UInt32),
-                  au.instance, param_id, scope, element, Float32(value), 0)
+                  au.instance, param_id, scope, element, Float32(value), offset)
 
     if status != noErr
         @error "Failed to set parameter value: OSStatus $status"
