@@ -136,6 +136,17 @@ struct AudioUnitSummary
     initialized::Bool
 end
 
+"""
+    AudioTimeStampInfo
+
+Timing information for audio rendering.
+"""
+struct AudioTimeStampInfo
+    sample_time::Float64
+    sample_rate::Float64
+    flags::UInt32
+end
+
 # AudioUnit Property IDs
 const kAudioUnitProperty_ClassInfo = 0
 const kAudioUnitProperty_MakeConnection = 1

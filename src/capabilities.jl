@@ -296,3 +296,126 @@ function setbypass!(au::AudioUnit, bypass::Bool)
 
     return true
 end
+
+"""
+    blocksize(au::AudioUnit) -> UInt32
+
+Get the maximum number of audio frames (block size) the AudioUnit processes per render slice.
+
+Returns the block size in frames. This is the size of audio buffers passed to the AudioUnit
+during rendering.
+
+# Examples
+```julia
+size = blocksize(au)
+println("Block size: ", size, " frames")
+```
+"""
+function blocksize(au::AudioUnit)
+    size = Ref{UInt32}(4)
+    frames = Ref{UInt32}(0)
+
+    status = ccall((:AudioUnitGetProperty, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt32}, Ptr{UInt32}),
+                  au.instance, kAudioUnitProperty_MaximumFramesPerSlice,
+                  kAudioUnitScope_Global, 0, frames, size)
+
+    return status == noErr ? frames[] : UInt32(0)
+end
+
+"""
+    setblocksize!(au::AudioUnit, frames::Integer) -> Bool
+
+Set the maximum number of audio frames (block size) the AudioUnit processes per render slice.
+
+Returns `true` on success, `false` otherwise.
+
+# Arguments
+- `au::AudioUnit`: The AudioUnit instance
+- `frames::Integer`: The block size in frames (typically 64, 128, 256, 512, or 1024)
+
+# Examples
+```julia
+# Set block size to 256 frames
+setblocksize!(au, 256)
+```
+"""
+function setblocksize!(au::AudioUnit, frames::Integer)
+    @assert frames > 0 "Block size must be greater than 0, got $frames"
+
+    frames_val = Ref{UInt32}(UInt32(frames))
+
+    status = ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt32}, UInt32),
+                  au.instance, kAudioUnitProperty_MaximumFramesPerSlice,
+                  kAudioUnitScope_Global, 0, frames_val, 4)
+
+    if status != noErr
+        @error "Failed to set block size: OSStatus $status"
+        return false
+    end
+
+    return true
+end
+
+"""
+    currenttimestamp(au::AudioUnit) -> AudioTimeStampInfo
+
+Get the current audio timestamp for the AudioUnit.
+
+Returns an `AudioTimeStampInfo` struct containing:
+- `sample_time`: Current sample position
+- `sample_rate`: Sample rate in Hz
+- `flags`: Timestamp flags indicating which fields are valid
+
+# Examples
+```julia
+ts = currenttimestamp(au)
+println("Current sample time: ", ts.sample_time)
+println("Sample rate: ", ts.sample_rate, " Hz")
+```
+"""
+function currenttimestamp(au::AudioUnit)
+    # AudioTimeStamp structure (56 bytes on 64-bit systems)
+    # We'll query it via GetProperty
+    size = Ref{UInt32}(56)
+    timestamp_buffer = zeros(UInt8, 56)
+
+    status = ccall((:AudioUnitGetProperty, AudioToolbox), Int32,
+                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, Ptr{UInt32}),
+                  au.instance, 229,  # kAudioUnitProperty_CurrentPlayTime = 229
+                  kAudioUnitScope_Global, 0, timestamp_buffer, size)
+
+    if status != noErr
+        # Return default if property not available
+        return AudioTimeStampInfo(0.0, 0.0, 0)
+    end
+
+    # Parse AudioTimeStamp structure
+    # mSampleTime (Float64) at offset 0
+    # mHostTime (UInt64) at offset 8
+    # mRateScalar (Float64) at offset 16
+    # mWordClockTime (SMPTETime) at offset 24
+    # mSMPTEResolution (UInt32) at offset 40
+    # mFlags (UInt32) at offset 44
+    # mReserved (UInt32) at offset 48
+    # mReservedA (UInt32) at offset 52
+
+    ptr = pointer(timestamp_buffer)
+    sample_time = unsafe_load(Ptr{Float64}(ptr))
+    flags = unsafe_load(Ptr{UInt32}(ptr + 44))
+
+    # Try to get sample rate from the AudioUnit's stream format
+    sample_rate = 44100.0  # Default
+    fmt = try
+        streamformat(au)
+    catch
+        nothing
+    end
+
+    if !isnothing(fmt)
+        sample_rate = fmt.sample_rate
+    end
+
+    return AudioTimeStampInfo(sample_time, sample_rate, flags)
+end
