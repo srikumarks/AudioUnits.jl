@@ -313,9 +313,7 @@ function fourcc_to_string(code::UInt32)::String
 end
 
 function string_to_fourcc(s::String)::UInt32
-    if length(s) != 4
-        error("FourCC string must be exactly 4 characters")
-    end
+    @assert length(s) == 4 "FourCC string must be exactly 4 characters, got $(length(s))"
 
     bytes = codeunits(s)
     return (UInt32(bytes[1]) << 24) |

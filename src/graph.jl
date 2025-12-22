@@ -643,12 +643,8 @@ function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
     end
 
     # Validate output buffer
-    if size(output) != size(input)
-        error("Output buffer size $(size(output)) must match input size $(size(input))")
-    end
-    if output.samplerate != input.samplerate
-        error("Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)")
-    end
+    @assert size(output) == size(input) "Output buffer size $(size(output)) must match input size $(size(input))"
+    @assert output.samplerate == input.samplerate "Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)"
 
     # Get the AudioUnit from the node
     au_ref = Ref{Ptr{Cvoid}}()
@@ -784,12 +780,8 @@ function processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit,
     end
 
     # Validate output buffer
-    if size(output) != size(input)
-        error("Output buffer size $(size(output)) must match input size $(size(input))")
-    end
-    if output.samplerate != input.samplerate
-        error("Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)")
-    end
+    @assert size(output) == size(input) "Output buffer size $(size(output)) must match input size $(size(input))"
+    @assert output.samplerate == input.samplerate "Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)"
 
     # Get dimensions
     nchannels = size(input, 1)

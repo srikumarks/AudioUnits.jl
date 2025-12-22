@@ -90,15 +90,9 @@ noteon(au, 69, 64, channel=1, offset=256)
 ```
 """
 function noteon(au::AudioUnit, note::Integer, velocity::Integer=100; channel::Integer=0, offset::UInt32=0)
-    if note < 0 || note > 127
-        error("Note must be in range 0-127, got $note")
-    end
-    if velocity < 0 || velocity > 127
-        error("Velocity must be in range 0-127, got $velocity")
-    end
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
+    @assert 0 <= velocity <= 127 "Velocity must be in range 0-127, got $velocity"
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0x90 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(note), UInt8(velocity); offset=offset)
@@ -125,12 +119,8 @@ noteoff(au, 69, channel=1, offset=512)
 ```
 """
 function noteoff(au::AudioUnit, note::Integer; channel::Integer=0, offset::UInt32=0)
-    if note < 0 || note > 127
-        error("Note must be in range 0-127, got $note")
-    end
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0x80 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(note), UInt8(0); offset=offset)
@@ -165,15 +155,9 @@ controlchange(au, 64, 127, channel=1, offset=256)
 ```
 """
 function controlchange(au::AudioUnit, controller::Integer, value::Integer; channel::Integer=0, offset::UInt32=0)
-    if controller < 0 || controller > 127
-        error("Controller must be in range 0-127, got $controller")
-    end
-    if value < 0 || value > 127
-        error("Value must be in range 0-127, got $value")
-    end
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= controller <= 127 "Controller must be in range 0-127, got $controller"
+    @assert 0 <= value <= 127 "Value must be in range 0-127, got $value"
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0xB0 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(controller), UInt8(value); offset=offset)
@@ -200,12 +184,8 @@ programchange(au, 40, channel=1, offset=256)
 ```
 """
 function programchange(au::AudioUnit, program::Integer; channel::Integer=0, offset::UInt32=0)
-    if program < 0 || program > 127
-        error("Program must be in range 0-127, got $program")
-    end
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= program <= 127 "Program must be in range 0-127, got $program"
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0xC0 | (channel & 0x0F))
     return sendmidi(au, status, UInt8(program), UInt8(0); offset=offset)
@@ -235,12 +215,8 @@ pitchbend(au, 4096, offset=512)
 ```
 """
 function pitchbend(au::AudioUnit, value::Integer; channel::Integer=0, offset::UInt32=0)
-    if value < 0 || value > 16383
-        error("Pitch bend value must be in range 0-16383, got $value")
-    end
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= value <= 16383 "Pitch bend value must be in range 0-16383, got $value"
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     status = UInt8(0xE0 | (channel & 0x0F))
     lsb = UInt8(value & 0x7F)
@@ -270,9 +246,7 @@ end
 ```
 """
 function allnotesoff(au::AudioUnit; channel::Integer=0, offset::UInt32=0)
-    if channel < 0 || channel > 15
-        error("Channel must be in range 0-15, got $channel")
-    end
+    @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     # CC 123 = All Notes Off
     return controlchange(au, 123, 0, channel=channel, offset=offset)
