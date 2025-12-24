@@ -1,6 +1,6 @@
 name = "AudioUnits"
 uuid = "8b8c5e3a-1e4d-4c5f-9a3b-2d7e6f8c9a1b"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Your Name <your.email@example.com>"]
 
 [deps]
