@@ -440,7 +440,7 @@ function processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) w
             # Get number of buffers
             nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
             # Copy the buffer list structure
-            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            copysize = 4 + nbuffers * 16
             unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
         end
         return 0  # noErr
@@ -452,7 +452,7 @@ function processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) w
 
     # Create AURenderCallbackStruct
     callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
     unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
 
     # Set the render callback on input scope (kAudioUnitProperty_SetRenderCallback = 23)
@@ -558,7 +558,7 @@ function processbuffer(au::AudioUnit, input::SampleBuf{T, 2}) where T
         input_list_ptr = Ptr{UInt8}(inRefCon)
         if ioData != C_NULL && input_list_ptr != C_NULL
             nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            copysize = 4 + nbuffers * 16
             unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
         end
         return 0
@@ -568,7 +568,7 @@ function processbuffer(au::AudioUnit, input::SampleBuf{T, 2}) where T
                              (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
 
     callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
     unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
 
     # Set render callback on input scope
@@ -702,7 +702,7 @@ function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
         input_list_ptr = Ptr{UInt8}(inRefCon)
         if ioData != C_NULL && input_list_ptr != C_NULL
             nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            copysize = 4 + nbuffers * 16
             unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
         end
         return 0
@@ -712,7 +712,7 @@ function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
                              (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
 
     callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
     unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
 
     # Set render callback
@@ -823,7 +823,7 @@ function process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}
         input_list_ptr = Ptr{UInt8}(inRefCon)
         if ioData != C_NULL && input_list_ptr != C_NULL
             nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = min(UInt32(buffer_list_size), 4 + nbuffers * 16)
+            copysize = 4 + nbuffers * 16
             unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
         end
         return 0
@@ -833,7 +833,7 @@ function process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}
                              (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
 
     callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), callback_ptr)
+    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
     unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
 
     # Set render callback on input scope

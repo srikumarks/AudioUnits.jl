@@ -139,14 +139,14 @@ function Base.show(io::IO, ::MIME"text/plain", au::AudioUnit)
 
     # Capabilities
     println(io, "Capabilities:")
-    println(io, "  Effects Processing: ", supports_effects(au) ? "✓" : "✗")
-    println(io, "  MIDI Input: ", supports_midi(au) ? "✓" : "✗")
-    println(io, "  Bypass Support: ", can_bypass(au) ? "✓" : "✗")
+    println(io, "  Effects Processing: ", supportseffects(au) ? "✓" : "✗")
+    println(io, "  MIDI Input: ", supportsmidi(au) ? "✓" : "✗")
+    println(io, "  Bypass Support: ", canbypass(au) ? "✓" : "✗")
     println(io)
 
     # Channel Configurations
     println(io, "Channel Configurations:")
-    configs = get_channel_capabilities(au)
+    configs = channelcapabilities(au)
     for (i, config) in enumerate(configs)
         in_ch = config.input_channels < 0 ? "any" : string(config.input_channels)
         out_ch = config.output_channels < 0 ? "any" : string(config.output_channels)
@@ -156,13 +156,13 @@ function Base.show(io::IO, ::MIME"text/plain", au::AudioUnit)
 
     # Performance characteristics (if initialized)
     if au.initialized
-        latency = get_latency(au)
-        tail = get_tail_time(au)
+        latency_val = latency(au)
+        tail = tailtime(au)
 
-        if latency > 0 || tail > 0
+        if latency_val > 0 || tail > 0
             println(io, "Performance:")
-            if latency > 0
-                println(io, "  Latency: ", round(latency * 1000, digits=2), " ms")
+            if latency_val > 0
+                println(io, "  Latency: ", round(latency_val * 1000, digits=2), " ms")
             end
             if tail > 0
                 println(io, "  Tail Time: ", round(tail, digits=3), " s")
@@ -172,7 +172,7 @@ function Base.show(io::IO, ::MIME"text/plain", au::AudioUnit)
     end
 
     # Parameters summary
-    params = get_parameters(au)
+    params = parameters(au)
     print(io, "Parameters: ", length(params), " total")
 
     if !isempty(params) && get(io, :limit, true)
@@ -202,13 +202,13 @@ function Base.show(io::IO, ::MIME"text/html", au::AudioUnit)
     status_text = au.initialized ? "Initialized" : "Uninitialized"
 
     # Capabilities
-    effects_icon = supports_effects(au) ? "✓" : "✗"
-    midi_icon = supports_midi(au) ? "✓" : "✗"
-    bypass_icon = can_bypass(au) ? "✓" : "✗"
+    effects_icon = supportseffects(au) ? "✓" : "✗"
+    midi_icon = supportsmidi(au) ? "✓" : "✗"
+    bypass_icon = canbypass(au) ? "✓" : "✗"
 
-    effects_color = supports_effects(au) ? "#4CAF50" : "#999"
-    midi_color = supports_midi(au) ? "#4CAF50" : "#999"
-    bypass_color = can_bypass(au) ? "#4CAF50" : "#999"
+    effects_color = supportseffects(au) ? "#4CAF50" : "#999"
+    midi_color = supportsmidi(au) ? "#4CAF50" : "#999"
+    bypass_color = canbypass(au) ? "#4CAF50" : "#999"
 
     print(io, """
     <div style="border: 3px solid #2196F3; border-radius: 8px; padding: 16px; margin: 10px 0; background: linear-gradient(to bottom, #f5f5f5, #ffffff);">
@@ -240,7 +240,7 @@ function Base.show(io::IO, ::MIME"text/html", au::AudioUnit)
     """)
 
     # Channel configurations
-    configs = get_channel_capabilities(au)
+    configs = channelcapabilities(au)
     print(io, """
         <div style="margin-top: 12px;">
             <h4 style="margin: 8px 0 4px 0; color: #555;">Channel Configurations</h4>
@@ -264,18 +264,18 @@ function Base.show(io::IO, ::MIME"text/html", au::AudioUnit)
 
     # Performance info (if initialized)
     if au.initialized
-        latency = get_latency(au)
-        tail = get_tail_time(au)
+        latency_val = latency(au)
+        tail = tailtime(au)
 
-        if latency > 0 || tail > 0
+        if latency_val > 0 || tail > 0
             print(io, """
                 <div style="margin-top: 12px;">
                     <h4 style="margin: 8px 0 4px 0; color: #555;">Performance</h4>
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
             """)
 
-            if latency > 0
-                latency_ms = round(latency * 1000, digits=2)
+            if latency_val > 0
+                latency_ms = round(latency_val * 1000, digits=2)
                 print(io, """
                         <tr><td style="padding: 4px; font-weight: bold;">Latency:</td><td style="padding: 4px;">$(latency_ms) ms</td></tr>
                 """)
@@ -296,7 +296,7 @@ function Base.show(io::IO, ::MIME"text/html", au::AudioUnit)
     end
 
     # Parameters
-    params = get_parameters(au)
+    params = parameters(au)
     print(io, """
         <div style="margin-top: 12px;">
             <h4 style="margin: 8px 0 4px 0; color: #555;">Parameters ($(length(params)) total)</h4>

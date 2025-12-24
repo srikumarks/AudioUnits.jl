@@ -42,7 +42,7 @@ sendmidi(au, 0x90, 60, 100)
 sendmidi(au, 0x80, 60, 0; offset=256)
 ```
 """
-function sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8; offset::UInt32=0)
+function sendmidi(au::AudioUnit, status::UInt8, data1::UInt8, data2::UInt8; offset::UInt32=UInt32(0))
     if !supportsmidi(au)
         error("AudioUnit $(au.name) does not support MIDI input")
     end
@@ -89,7 +89,7 @@ noteon(au, 0, 60)
 noteon(au, 1, 69, 64, offset=256)
 ```
 """
-function noteon(au::AudioUnit, channel::Integer, note::Integer, velocity::Integer=100; offset::UInt32=0)
+function noteon(au::AudioUnit, channel::Integer, note::Integer, velocity::Integer=100; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
     @assert 0 <= velocity <= 127 "Velocity must be in range 0-127, got $velocity"
@@ -118,7 +118,7 @@ noteoff(au, 0, 60)
 noteoff(au, 1, 69, offset=512)
 ```
 """
-function noteoff(au::AudioUnit, channel::Integer, note::Integer; offset::UInt32=0)
+function noteoff(au::AudioUnit, channel::Integer, note::Integer; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= note <= 127 "Note must be in range 0-127, got $note"
 
@@ -154,7 +154,7 @@ controlchange(au, 0, 7, 100)
 controlchange(au, 1, 64, 127, offset=256)
 ```
 """
-function controlchange(au::AudioUnit, channel::Integer, controller::Integer, value::Integer; offset::UInt32=0)
+function controlchange(au::AudioUnit, channel::Integer, controller::Integer, value::Integer; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= controller <= 127 "Controller must be in range 0-127, got $controller"
     @assert 0 <= value <= 127 "Value must be in range 0-127, got $value"
@@ -183,7 +183,7 @@ programchange(au, 0, 0)
 programchange(au, 1, 40, offset=256)
 ```
 """
-function programchange(au::AudioUnit, channel::Integer, program::Integer; offset::UInt32=0)
+function programchange(au::AudioUnit, channel::Integer, program::Integer; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= program <= 127 "Program must be in range 0-127, got $program"
 
@@ -214,7 +214,7 @@ pitchbend(au, 0, 12288, offset=256)
 pitchbend(au, 0, 4096, offset=512)
 ```
 """
-function pitchbend(au::AudioUnit, channel::Integer, value::Integer; offset::UInt32=0)
+function pitchbend(au::AudioUnit, channel::Integer, value::Integer; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
     @assert 0 <= value <= 16383 "Pitch bend value must be in range 0-16383, got $value"
 
@@ -245,7 +245,7 @@ for ch in 0:15
 end
 ```
 """
-function allnotesoff(au::AudioUnit, channel::Integer; offset::UInt32=0)
+function allnotesoff(au::AudioUnit, channel::Integer; offset::UInt32=UInt32(0))
     @assert 0 <= channel <= 15 "Channel must be in range 0-15, got $channel"
 
     # CC 123 = All Notes Off
