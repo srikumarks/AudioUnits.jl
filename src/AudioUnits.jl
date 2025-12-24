@@ -14,7 +14,7 @@ export pitchbend, allnotesoff
 export canbypass, setbypass!, latency, tailtime, listall
 export blocksize, setblocksize!, currenttimestamp
 export addnode!, addoutputnode!, connect!, initializegraph!, uninitializegraph!
-export disposegraph!, startgraph!, stopgraph!, processbuffer, processbuffer!
+export disposegraph!, startgraph!, stopgraph!, processbuffer, process!
 
 using Libdl
 

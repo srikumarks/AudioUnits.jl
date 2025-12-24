@@ -735,19 +735,17 @@ function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
 end
 
 """
-    processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
+    process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}) where T
 
 Process audio through a standalone AudioUnit, writing results to a pre-allocated output buffer.
 
-This is an in-place version that avoids allocations, ideal for streaming with small buffers.
+Matches the VST3Host.jl API. Modifies the output buffer in-place, avoiding allocations
+for streaming with small buffers.
 
 # Arguments
-- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
 - `au::AudioUnit`: The AudioUnit to process through
 - `input::SampleBuf`: Input audio buffer
-
-# Returns
-- `SampleBuf`: The output buffer (same object that was passed in)
+- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
 
 # Examples
 ```julia
@@ -765,7 +763,7 @@ output = SampleBuf(zeros(Float32, 2, bufsize), sr)
 # Process many buffers without allocation
 for i in 1:1000
     input.data .= randn(Float32, 2, bufsize)  # Fill with new data
-    processbuffer!(output, au, input)  # No allocation!
+    process!(au, input, output)  # No allocation!
     # ... use output
 end
 
@@ -773,8 +771,7 @@ uninitialize(au)
 dispose(au)
 ```
 """
-function processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit,
-                       input::SampleBuf{T, 2}) where T
+function process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}) where T
     if !au.initialized
         error("AudioUnit must be initialized before processing")
     end
@@ -855,5 +852,5 @@ function processbuffer!(output::SampleBuf{T, 2}, au::AudioUnit,
         error("Failed to render audio: OSStatus $status")
     end
 
-    return output
+    return nothing
 end
