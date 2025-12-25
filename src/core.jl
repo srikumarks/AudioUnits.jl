@@ -196,10 +196,12 @@ function load(type::AudioUnitType, subtype::UInt32)
     # We wrap the async call synchronously using objc_await
     au_instance = objc_await() do completion_handler
         # Create completion block
-        block = ObjectiveC.@block (au::ObjectiveC.Object, err::ObjectiveC.Object) -> begin
-            completion_handler(au, err)
-            return nothing
-        end
+        # TODO: Update to use @objcblock from ObjectiveC.jl v3
+        # block = @objcblock (au, err) -> begin
+        #     completion_handler(au, err)
+        #     return nothing
+        # end
+        error("Async AudioUnit loading not yet implemented - requires ObjectiveC.jl v3 @objcblock integration")
 
         # Call async instantiation
         ObjectiveC.msgSend(

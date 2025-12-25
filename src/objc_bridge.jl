@@ -1,435 +1,227 @@
 # ObjectiveC Bridge for AUv3 Integration
 #
-# This module provides all ObjectiveC.jl integration for AUv3 AudioUnit support.
-# It handles framework imports, class references, and helper functions for
-# converting between Objective-C and Julia types, managing async/sync conversions,
-# and creating real-time safe Objective-C blocks.
+# This module provides ObjectiveC.jl integration for AUv3 AudioUnit support.
 #
-# Note: ObjectiveC.jl is required for full AUv3 support.
-# This stub provides fallback implementations for compilation.
+# NOTE: Full ObjectiveC.jl v3.4.2 integration is in progress.
+# The current implementation provides stub functionality to allow module compilation.
+# Complete AUv3 functionality requires proper ObjectiveC.jl v3 API integration.
 
-# Define ObjectiveC stub module for fallback when library not available
-module ObjectiveC
-    const Object = Any
-    const Block = Any
-    Ptr = Base.Ptr
-
-    macro class(x)
-        return :(Any)
-    end
-
-    macro framework(x)
-        return :(Any)
-    end
-
-    macro block(x)
-        return :(Any)
-    end
-
-    function msgSend(args...)
-        error("ObjectiveC.jl not available. Cannot perform Objective-C interop.")
-    end
-end
-
-# Try to use real ObjectiveC.jl if available, otherwise use stubs
-@static if haskey(Base.loaded_modules, Base.PkgId(Base.UUID("4d8a7ffa-19aa-4c76-a42a-4333d212e554"), "ObjectiveC"))
-    using ObjectiveC
-else
-    import .ObjectiveC
-end
+using ObjectiveC
 
 # ============================================================================
-# Framework Imports
+# Note about ObjectiveC.jl v3 API
 # ============================================================================
-
-const AVFoundation = ObjectiveC.@framework "AVFoundation"
-const AudioToolbox = ObjectiveC.@framework "AudioToolbox"
-
-# ============================================================================
-# ObjectiveC Class References
-# ============================================================================
-
-# Component Discovery
-const AVAudioUnitComponentManager = ObjectiveC.@class AVAudioUnitComponentManager
-const AVAudioUnitComponent = ObjectiveC.@class AVAudioUnitComponent
-
-# Audio Units
-const AUAudioUnit = ObjectiveC.@class AUAudioUnit
-const AVAudioUnit = ObjectiveC.@class AVAudioUnit
-
-# Parameters
-const AUParameterTree = ObjectiveC.@class AUParameterTree
-const AUParameterNode = ObjectiveC.@class AUParameterNode
-const AUParameter = ObjectiveC.@class AUParameter
-
-# Audio Engine
-const AVAudioEngine = ObjectiveC.@class AVAudioEngine
-const AVAudioNode = ObjectiveC.@class AVAudioNode
-const AVAudioPlayerNode = ObjectiveC.@class AVAudioPlayerNode
-
-# Buffers
-const AVAudioPCMBuffer = ObjectiveC.@class AVAudioPCMBuffer
-const AVAudioFormat = ObjectiveC.@class AVAudioFormat
-
-# Foundation
-const NSString = ObjectiveC.@class NSString
-const NSArray = ObjectiveC.@class NSArray
-const NSError = ObjectiveC.@class NSError
-const NSNumber = ObjectiveC.@class NSNumber
+# ObjectiveC.jl v3.4.2 uses a different API than initially planned:
+# - Classes are looked up differently (not via @framework or @class macros)
+# - Message sending uses @objc macro with different syntax
+# - Blocks are created via @objcblock macro
+#
+# This file needs to be updated to use the correct ObjectiveC.jl v3 API.
+# For now, stub functions are provided to allow compilation.
 
 # ============================================================================
-# String Conversion Utilities
+# Stub Functions (to be replaced with real ObjectiveC.jl v3 calls)
 # ============================================================================
 
 """
-    nsstring_to_julia(nsstr::ObjectiveC.Object) -> String
+    msgSend(receiver, selector, args...)
+
+Stub for Objective-C message sending.
+TODO: Implement using ObjectiveC.jl v3 @objc macro syntax.
+"""
+function msgSend(receiver, selector, args...; return_type=Any)
+    error("ObjectiveC.jl v3 integration not yet complete. msgSend needs to be implemented using @objc macro.")
+end
+
+"""
+Stub class reference functions.
+TODO: Implement proper class lookup using ObjectiveC.jl v3 API.
+"""
+AVAudioUnitComponentManager = nothing
+AVAudioUnitComponent = nothing
+AUAudioUnit = nothing
+AVAudioUnit = nothing
+AUParameterTree = nothing
+AUParameterNode = nothing
+AUParameter = nothing
+AVAudioEngine = nothing
+AVAudioNode = nothing
+AVAudioPlayerNode = nothing
+AVAudioPCMBuffer = nothing
+AVAudioFormat = nothing
+NSString = nothing
+NSArray = nothing
+NSError = nothing
+NSNumber = nothing
+
+# ============================================================================
+# String Conversion Utilities (Stubs)
+# ============================================================================
+
+"""
+    nsstring_to_julia(nsstr) -> String
 
 Convert an NSString to a Julia String.
+TODO: Implement using ObjectiveC.jl v3 API.
 """
-function nsstring_to_julia(nsstr::ObjectiveC.Object)
-    if isnothing(nsstr) || isa(nsstr, Ptr) && nsstr == C_NULL
+function nsstring_to_julia(nsstr)
+    if isnothing(nsstr)
         return ""
     end
-
-    # Get C string pointer from NSString
-    c_str = ObjectiveC.msgSend(nsstr, "UTF8String", ObjectiveC.Ptr{Cchar})
-    if c_str == C_NULL
-        return ""
-    end
-
-    return unsafe_string(c_str)
+    # TODO: Implement proper conversion
+    error("nsstring_to_julia not yet implemented for ObjectiveC.jl v3")
 end
 
 """
-    julia_to_nsstring(str::String) -> ObjectiveC.Object
+    julia_to_nsstring(str::String)
 
 Convert a Julia String to an NSString.
+TODO: Implement using ObjectiveC.jl v3 Foundation.NSString.
 """
 function julia_to_nsstring(str::String)
-    return ObjectiveC.msgSend(NSString, "stringWithUTF8String:", str)
+    # TODO: Implement proper conversion
+    error("julia_to_nsstring not yet implemented for ObjectiveC.jl v3")
 end
 
 # ============================================================================
-# Async-to-Sync Conversion
+# Async-to-Sync Conversion (Stub)
 # ============================================================================
 
 """
     objc_await(async_func::Function) -> Any
 
 Wrap an asynchronous Objective-C operation in a synchronous Julia API.
-
-The `async_func` should take a single completion handler function as argument
-and call it when the async operation completes.
-
-Example:
-    result = objc_await() do completion
-        AUAudioUnit.instantiateWithComponentDescription_options_completionHandler(
-            desc, 0, create_completion_block(completion)
-        )
-    end
-
-This function:
-1. Creates a completion handler
-2. Calls async_func with the completion handler
-3. Blocks Julia execution until completion
-4. Returns the result or throws an error
+TODO: Implement using proper ObjectiveC.jl v3 async patterns.
 """
 function objc_await(async_func::Function)
-    result = Ref{Any}(nothing)
-    error_ref = Ref{Any}(nothing)
-    completed = Threads.Condition()
-
-    # Create a Julia function to use as completion handler
-    completion_handler = function(au::Any, err::Any)
-        lock(completed) do
-            if !isnothing(err) && err != C_NULL
-                error_ref[] = err
-            else
-                result[] = au
-            end
-            notify(completed)
-        end
-    end
-
-    # Call the async function with our completion handler
-    try
-        async_func(completion_handler)
-    catch e
-        rethrow(e)
-    end
-
-    # Wait for completion with timeout
-    lock(completed) do
-        # Wait with 30 second timeout
-        wait_result = timedwait(completed, 30.0) do
-            result[] !== nothing || error_ref[] !== nothing
-        end
-
-        if wait_result == :timed_out
-            error("AUv3 instantiation timed out after 30 seconds")
-        end
-    end
-
-    # Check for errors
-    if !isnothing(error_ref[])
-        err_obj = error_ref[]
-        error_msg = "Unknown error"
-
-        # Try to get error description
-        if !isa(err_obj, Ptr) || err_obj != C_NULL
-            try
-                err_desc = ObjectiveC.msgSend(err_obj, "localizedDescription", ObjectiveC.Object)
-                error_msg = nsstring_to_julia(err_desc)
-            catch
-            end
-        end
-
-        error("AUv3 instantiation failed: $error_msg")
-    end
-
-    return result[]
+    error("objc_await not yet implemented for ObjectiveC.jl v3")
 end
 
 # ============================================================================
-# Completion Block Creation
+# Helper Functions (Stubs)
 # ============================================================================
 
 """
-    create_completion_block(handler::Function)
+    create_audio_component_description(type, subtype, manufacturer) -> Vector{UInt8}
 
-Create an Objective-C block for async instantiation completion.
-
-The block signature is:
-    ^(AUAudioUnit *au, NSError *error)
-"""
-function create_completion_block(handler::Function)
-    # Create a closure block that calls the Julia handler
-    # Block signature: void (^)(AUAudioUnit *, NSError *)
-    block = ObjectiveC.@block (au::ObjectiveC.Object, err::ObjectiveC.Object) -> begin
-        handler(au, err)
-        return nothing
-    end
-
-    return block
-end
-
-# ============================================================================
-# AudioComponentDescription Creation
-# ============================================================================
-
-"""
-    create_audio_component_description(
-        component_type::UInt32,
-        component_subtype::UInt32,
-        component_manufacturer::UInt32
-    ) -> Vector{UInt8}
-
-Create an AudioComponentDescription structure for component discovery.
-
-Returns a byte vector containing the properly formatted AudioComponentDescription
-that matches the C struct layout.
+Create an AudioComponentDescription structure.
+TODO: Implement proper struct creation.
 """
 function create_audio_component_description(
     component_type::UInt32,
     component_subtype::UInt32,
     component_manufacturer::UInt32 = 0
 )
-    # AudioComponentDescription layout (20 bytes):
-    # componentType: UInt32
-    # componentSubType: UInt32
-    # componentManufacturer: UInt32
-    # componentFlags: UInt32
-    # componentFlagsMask: UInt32
-
     desc = Vector{UInt8}(undef, 20)
-
-    # Write each field (little-endian)
     unsafe_store!(Ptr{UInt32}(pointer(desc)), component_type)
     unsafe_store!(Ptr{UInt32}(pointer(desc) + 4), component_subtype)
     unsafe_store!(Ptr{UInt32}(pointer(desc) + 8), component_manufacturer)
-    unsafe_store!(Ptr{UInt32}(pointer(desc) + 12), UInt32(0))  # flags
-    unsafe_store!(Ptr{UInt32}(pointer(desc) + 16), UInt32(0))  # flagsMask
-
+    unsafe_store!(Ptr{UInt32}(pointer(desc) + 12), UInt32(0))
+    unsafe_store!(Ptr{UInt32}(pointer(desc) + 16), UInt32(0))
     return desc
 end
 
-# ============================================================================
-# Buffer List Management
-# ============================================================================
-
 """
-    create_audio_buffer_list(nchannels::Int, nbuffers::Int) -> Vector{UInt8}
+    create_audio_buffer_list(nchannels::Int, nframes::Int) -> Vector{UInt8}
 
 Create an AudioBufferList structure for audio data.
-
-Returns a byte vector containing the properly formatted AudioBufferList.
-The structure is:
-- mNumberBuffers: UInt32 (4 bytes)
-- mBuffers: Array of AudioBuffer (nchannels * 16 bytes)
-
-Total size: 4 + nchannels * 16
 """
 function create_audio_buffer_list(nchannels::Int, nframes::Int)
     buffer_list_size = 4 + nchannels * 16
     buffer_list = zeros(UInt8, buffer_list_size)
-
-    # Set number of buffers (first 4 bytes, little-endian UInt32)
     unsafe_store!(Ptr{UInt32}(pointer(buffer_list)), UInt32(nchannels))
-
     return buffer_list
 end
 
 """
-    setup_audio_buffer!(
-        buffer_list::Vector{UInt8},
-        channel_idx::Int,
-        data::Vector{Float32}
-    )
+    setup_audio_buffer!(buffer_list, channel_idx, data)
 
 Configure an AudioBuffer within an AudioBufferList to point to audio data.
-
-Parameters:
-- buffer_list: The AudioBufferList structure
-- channel_idx: Which channel buffer to configure (0-based)
-- data: Vector of Float32 audio samples
 """
 function setup_audio_buffer!(
     buffer_list::Vector{UInt8},
     channel_idx::Int,
     data::Vector{Float32}
 )
-    # AudioBufferList layout:
-    # [0:4] mNumberBuffers (UInt32)
-    # [4:] mBuffers array (each is 16 bytes: mNumberChannels + mDataByteSize + mData)
-
-    # Calculate offset for this buffer's AudioBuffer structure
     buffer_offset = 4 + channel_idx * 16
-
-    # Set mNumberChannels = 1 (single channel per buffer)
     unsafe_store!(Ptr{UInt32}(pointer(buffer_list) + buffer_offset), UInt32(1))
-
-    # Set mDataByteSize
     nbytes = length(data) * sizeof(Float32)
     unsafe_store!(Ptr{UInt32}(pointer(buffer_list) + buffer_offset + 4), UInt32(nbytes))
-
-    # Set mData pointer
     data_ptr = pointer(data)
     unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(buffer_list) + buffer_offset + 8),
                  convert(Ptr{Cvoid}, data_ptr))
 end
 
-# ============================================================================
-# AudioTimeStamp Creation
-# ============================================================================
-
 """
     create_audio_timestamp(sample_time::Float64, sample_rate::Float64)
 
 Create an AudioTimeStamp structure for render callbacks.
-
-Returns a byte vector containing the properly formatted AudioTimeStamp.
 """
 function create_audio_timestamp(sample_time::Float64, sample_rate::Float64)
-    # AudioTimeStamp structure (56 bytes minimum)
-    # mSampleTime (Float64): 8 bytes
-    # mHostTime (UInt64): 8 bytes
-    # mRateScalar (Float64): 8 bytes
-    # mFlags (UInt32): 4 bytes
-    # (+ 24 bytes reserved for alignment)
-
     timestamp = zeros(UInt8, 56)
-
-    # Set mSampleTime
     unsafe_store!(Ptr{Float64}(pointer(timestamp)), sample_time)
-
-    # Set mHostTime to current time (approximate)
-    host_time = time_ns() ÷ 1000  # Convert to microseconds
+    host_time = time_ns() ÷ 1000
     unsafe_store!(Ptr{UInt64}(pointer(timestamp) + 8), UInt64(host_time))
-
-    # Set mRateScalar = 1.0
     unsafe_store!(Ptr{Float64}(pointer(timestamp) + 16), 1.0)
-
-    # Set mFlags = 0x0F (all time fields are valid)
     unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 24), UInt32(0x0F))
-
     return timestamp
 end
 
-# ============================================================================
-# Utility Functions
-# ============================================================================
-
 """
-    objc_array_to_julia(objc_array::ObjectiveC.Object) -> Vector
+    objc_array_to_julia(objc_array) -> Vector
 
 Convert an NSArray to a Julia Vector.
+TODO: Implement using ObjectiveC.jl v3 API.
 """
-function objc_array_to_julia(objc_array::ObjectiveC.Object)
-    if isnothing(objc_array) || objc_array == C_NULL
+function objc_array_to_julia(objc_array)
+    if isnothing(objc_array)
         return []
     end
-
-    count = ObjectiveC.msgSend(objc_array, "count", UInt)
-    result = Any[]
-
-    for i in 0:(count-1)
-        obj = ObjectiveC.msgSend(objc_array, "objectAtIndex:", UInt(i), ObjectiveC.Object)
-        push!(result, obj)
-    end
-
-    return result
+    error("objc_array_to_julia not yet implemented for ObjectiveC.jl v3")
 end
 
 """
-    get_nserror_description(error::ObjectiveC.Object) -> String
+    get_nserror_description(error) -> String
 
 Extract error description from an NSError object.
+TODO: Implement using ObjectiveC.jl v3 API.
 """
-function get_nserror_description(error::ObjectiveC.Object)
-    if isnothing(error) || error == C_NULL
+function get_nserror_description(error)
+    if isnothing(error)
         return "Unknown error"
     end
-
-    try
-        desc = ObjectiveC.msgSend(error, "localizedDescription", ObjectiveC.Object)
-        return nsstring_to_julia(desc)
-    catch
-        return "Unknown error"
-    end
+    error("get_nserror_description not yet implemented for ObjectiveC.jl v3")
 end
 
 """
-    get_nserror_code(error::ObjectiveC.Object) -> Int
+    get_nserror_code(error) -> Int
 
 Extract error code from an NSError object.
+TODO: Implement using ObjectiveC.jl v3 API.
 """
-function get_nserror_code(error::ObjectiveC.Object)
-    if isnothing(error) || error == C_NULL
+function get_nserror_code(error)
+    if isnothing(error)
         return -1
     end
-
-    try
-        code = ObjectiveC.msgSend(error, "code", Int)
-        return code
-    catch
-        return -1
-    end
+    error("get_nserror_code not yet implemented for ObjectiveC.jl v3")
 end
 
 # ============================================================================
-# Selector and Message Sending Utilities
+# Status Message
 # ============================================================================
 
+@warn """
+AudioUnits.jl AUv3 migration is in progress.
+ObjectiveC.jl v3.4.2 integration needs to be completed.
+
+Current status:
+- Module structure migrated to AUv3 architecture ✓
+- ObjectiveC.jl v3 API integration needed (in progress)
+- Full functionality requires completing the ObjectiveC bridge
+
+To complete the migration, objc_bridge.jl needs to be updated to use:
+- Proper class lookup using ObjectiveC.jl v3 methods
+- @objc macro for message sending
+- @objcblock for creating blocks
+- Foundation module integration for string/array conversions
 """
-    send_objc_message(obj::ObjectiveC.Object, selector::String, args...) -> Any
-
-Send an Objective-C message (method call) to an object.
-
-This is a convenience wrapper around ObjectiveC.msgSend for cleaner syntax.
-
-Example:
-    result = send_objc_message(manager, "componentsMatchingDescription:", desc)
-"""
-function send_objc_message(obj::ObjectiveC.Object, selector::String, args...)
-    return ObjectiveC.msgSend(obj, selector, args...)
-end

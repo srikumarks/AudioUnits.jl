@@ -5,12 +5,10 @@ authors = ["Your Name <your.email@example.com>"]
 
 [deps]
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+ObjectiveC = "e86c9b32-1129-44ac-8ea0-90d5bb39ded9"
 SampledSignals = "bd7594eb-a658-542f-9e75-4c4d8908c167"
 
 [compat]
+ObjectiveC = "3.4.2"
 SampledSignals = "2.1.4"
 julia = "1.6"
-
-[extras]
-# Note: ObjectiveC.jl support is planned but not yet available
-# Currently we provide stub implementations for compilation
