@@ -1,13 +1,16 @@
-# AudioUnit parameter management
+# AudioUnit parameter management for AUv3
 
 """
     parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global) -> Vector{AudioUnitParameter}
 
-Get all parameters for an AudioUnit in the specified scope.
+Get all parameters for an AudioUnit by traversing the parameter tree.
+
+For AUv3, parameters are organized in a hierarchical tree structure with groups
+and individual parameters. This function flattens the tree and returns all parameters.
 
 # Arguments
-- `au::AudioUnit`: The AudioUnit instance
-- `scope::UInt32`: The parameter scope (default: Global)
+- `au::AudioUnit`: The AudioUnit instance (must be initialized first)
+- `scope::UInt32`: For compatibility (AUv3 doesn't use scopes, included for API consistency)
 
 # Returns
 A vector of `AudioUnitParameter` objects containing parameter information.
@@ -15,6 +18,8 @@ A vector of `AudioUnitParameter` objects containing parameter information.
 # Examples
 ```julia
 au = load("AULowpass")
+initialize(au)
+
 params = parameters(au)
 
 for param in params
@@ -25,17 +30,19 @@ end
 ```
 """
 function parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global)
-    # Get parameter list
-    param_ids = get_parameter_list(au.instance, scope)
+    if !au.initialized
+        error("AudioUnit must be initialized before accessing parameters")
+    end
+
+    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+        @debug "Parameter tree is null, returning empty parameter list"
+        return AudioUnitParameter[]
+    end
 
     params = AudioUnitParameter[]
 
-    for param_id in param_ids
-        info = parameterinfo(au, param_id, scope)
-        if !isnothing(info)
-            push!(params, AudioUnitParameter(param_id, scope, 0, info))
-        end
-    end
+    # Recursively traverse parameter tree
+    traverse_parameter_tree(au.parameter_tree, params, scope)
 
     return params
 end
@@ -43,62 +50,34 @@ end
 """
     parameterinfo(au::AudioUnit, param_id::UInt32, scope::UInt32 = kAudioUnitScope_Global) -> Union{AudioUnitParameterInfo, Nothing}
 
-Get detailed information about a specific parameter.
+Get detailed information about a specific parameter by its address (ID).
+
+For AUv3, parameters are identified by address (which matches the parameter ID).
 """
 function parameterinfo(au::AudioUnit, param_id::UInt32,
                       scope::UInt32 = kAudioUnitScope_Global)
-    # AudioUnitParameterInfo structure in C
-    # We'll use a buffer to receive the data
-    info_size = Ref{UInt32}(256)  # Size of buffer
-    info_buffer = zeros(UInt8, 256)
+    if !au.initialized
+        error("AudioUnit must be initialized before accessing parameters")
+    end
 
-    status = ccall((:AudioUnitGetProperty, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, Ptr{UInt32}),
-                  au.instance, kAudioUnitProperty_ParameterInfo,
-                  scope, param_id, info_buffer, info_size)
-
-    if status != noErr
+    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
         return nothing
     end
 
-    # Parse the parameter info structure
-    # struct AudioUnitParameterInfo {
-    #   char name[52];
-    #   CFStringRef unitName;
-    #   UInt32 clumpID;
-    #   CFStringRef cfNameString;
-    #   AudioUnitParameterUnit unit;
-    #   AudioUnitParameterValue minValue;
-    #   AudioUnitParameterValue maxValue;
-    #   AudioUnitParameterValue defaultValue;
-    #   UInt32 flags;
-    # }
+    # Find parameter by address
+    param = ObjectiveC.msgSend(
+        au.parameter_tree,
+        "parameterWithAddress:",
+        UInt64(param_id),
+        ObjectiveC.Object
+    )
 
-    ptr = pointer(info_buffer)
-
-    # Read name (52 bytes, null-terminated C string)
-    name_bytes = unsafe_wrap(Array, Ptr{UInt8}(ptr), 52)
-    null_idx = findfirst(==(0), name_bytes)
-    name = if isnothing(null_idx)
-        String(name_bytes)
-    else
-        String(name_bytes[1:null_idx-1])
+    if isnothing(param) || param == C_NULL
+        return nothing
     end
 
-    # Skip to minValue (after name[52], unitName ptr, clumpID, cfNameString ptr, unit)
-    # 52 + 8 + 4 + 8 + 4 = 76 bytes
-    offset = 52 + sizeof(Ptr{Cvoid}) + 4 + sizeof(Ptr{Cvoid}) + 4
-
-    min_value = unsafe_load(Ptr{Float32}(ptr + offset))
-    max_value = unsafe_load(Ptr{Float32}(ptr + offset + 4))
-    default_value = unsafe_load(Ptr{Float32}(ptr + offset + 8))
-    flags = unsafe_load(Ptr{UInt32}(ptr + offset + 12))
-
-    # Get unit name from the unit field
-    unit = unsafe_load(Ptr{UInt32}(ptr + 52 + sizeof(Ptr{Cvoid}) + 4 + sizeof(Ptr{Cvoid})))
-    unit_name = parameter_unit_to_string(unit)
-
-    return AudioUnitParameterInfo(name, unit_name, min_value, max_value, default_value, flags)
+    # Extract parameter info
+    return extract_parameter_info(param)
 end
 
 """
@@ -106,42 +85,49 @@ end
 
 Get the current value of a parameter.
 
+In AUv3, all parameters are accessed via the parameter tree. The scope and element
+parameters are included for API compatibility but are not used (AUv3 uses address-based access).
+
 # Arguments
 - `au::AudioUnit`: The AudioUnit instance
-- `param_id::UInt32`: The parameter ID
-- `scope::UInt32`: The parameter scope (default: Global)
-- `element::UInt32`: The parameter element (default: 0)
-- `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
-
-# Sample Offset Timing
-The `offset` parameter allows sample-accurate scheduling within a render block:
-- 0 = immediate/current value (default)
-- 100 = 100 samples into the block (~2.3ms at 44.1kHz)
-- Provides timing precision of ~23 microseconds at 44.1kHz
+- `param_id::UInt32`: The parameter address/ID
+- `scope::UInt32`: For compatibility (not used in AUv3)
+- `element::UInt32`: For compatibility (not used in AUv3)
+- `offset::UInt32`: For compatibility (not used in AUv3)
 
 # Examples
 ```julia
 value = parametervalue(au, param_id)
-
-# Get parameter value at a specific sample offset
-value_at_offset = parametervalue(au, param_id, offset=256)
 ```
 """
 function parametervalue(au::AudioUnit, param_id::UInt32;
                        scope::UInt32 = kAudioUnitScope_Global,
                        element::UInt32 = 0,
                        offset::UInt32 = 0)
-    value = Ref{Float32}()
-
-    status = ccall((:AudioUnitGetParameter, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{Float32}, UInt32),
-                  au.instance, param_id, scope, element, value, offset)
-
-    if status != noErr
-        error("Failed to get parameter value: OSStatus $status")
+    if !au.initialized
+        error("AudioUnit must be initialized before accessing parameters")
     end
 
-    return value[]
+    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+        error("Parameter tree is null")
+    end
+
+    # Find parameter by address
+    param = ObjectiveC.msgSend(
+        au.parameter_tree,
+        "parameterWithAddress:",
+        UInt64(param_id),
+        ObjectiveC.Object
+    )
+
+    if isnothing(param) || param == C_NULL
+        error("Parameter with address $param_id not found")
+    end
+
+    # Get parameter value
+    value = ObjectiveC.msgSend(param, "value", Float32)
+
+    return Float32(value)
 end
 
 """
@@ -153,75 +139,191 @@ Returns `true` on success, `false` otherwise.
 
 # Arguments
 - `au::AudioUnit`: The AudioUnit instance
-- `param_id::UInt32`: The parameter ID
+- `param_id::UInt32`: The parameter address/ID
 - `value::Real`: The parameter value to set
-- `scope::UInt32`: The parameter scope (default: Global)
-- `element::UInt32`: The parameter element (default: 0)
-- `offset::UInt32`: Sample offset within the render block (default: 0, immediate)
-
-# Sample Offset Timing
-The `offset` parameter allows sample-accurate scheduling within a render block:
-- 0 = immediate (default)
-- 100 = 100 samples into the block (~2.3ms at 44.1kHz)
-- Provides timing precision of ~23 microseconds at 44.1kHz
+- `scope::UInt32`: For compatibility (not used in AUv3)
+- `element::UInt32`: For compatibility (not used in AUv3)
+- `offset::UInt32`: For compatibility (not used in AUv3)
 
 # Examples
 ```julia
-# Set parameter to 0.5 immediately
+# Set parameter to 0.5
 setparametervalue!(au, param_id, 0.5)
-
-# Set parameter at a specific sample offset
-setparametervalue!(au, param_id, 0.5, offset=256)
 ```
 """
 function setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real;
                            scope::UInt32 = kAudioUnitScope_Global,
                            element::UInt32 = 0,
                            offset::UInt32 = 0)
-    status = ccall((:AudioUnitSetParameter, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Float32, UInt32),
-                  au.instance, param_id, scope, element, Float32(value), offset)
+    if !au.initialized
+        error("AudioUnit must be initialized before setting parameters")
+    end
 
-    if status != noErr
-        @error "Failed to set parameter value: OSStatus $status"
+    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+        @error "Parameter tree is null"
         return false
     end
 
-    return true
+    try
+        # Find parameter by address
+        param = ObjectiveC.msgSend(
+            au.parameter_tree,
+            "parameterWithAddress:",
+            UInt64(param_id),
+            ObjectiveC.Object
+        )
+
+        if isnothing(param) || param == C_NULL
+            @error "Parameter with address $param_id not found"
+            return false
+        end
+
+        # Clamp value to parameter range
+        min_val = ObjectiveC.msgSend(param, "minValue", Float32)
+        max_val = ObjectiveC.msgSend(param, "maxValue", Float32)
+        clamped_value = clamp(Float32(value), min_val, max_val)
+
+        # Set the parameter value via the parameter's setValue method
+        ObjectiveC.msgSend(param, "setValue:", clamped_value)
+
+        return true
+    catch e
+        @error "Failed to set parameter value: $e"
+        return false
+    end
 end
 
-# Helper functions
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
-function get_parameter_list(instance::Ptr{Cvoid}, scope::UInt32)
-    # Get the size of the parameter list
-    size = Ref{UInt32}(0)
-    writable = Ref{UInt32}(0)
+"""
+    traverse_parameter_tree(node::ObjectiveC.Object, params::Vector{AudioUnitParameter}, scope::UInt32)
 
-    status = ccall((:AudioUnitGetPropertyInfo, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt32}, Ptr{UInt32}),
-                  instance, kAudioUnitProperty_ParameterList,
-                  scope, 0, size, writable)
+Recursively traverse the AUParameterTree and collect all parameters.
 
-    if status != noErr || size[] == 0
-        return UInt32[]
+The tree structure can have parameter groups (like AUParameterGroup) containing
+individual parameters (AUParameter). This function recursively explores the tree.
+"""
+function traverse_parameter_tree(node::ObjectiveC.Object, params::Vector{AudioUnitParameter}, scope::UInt32)
+    if isnothing(node) || node == C_NULL
+        return
     end
 
-    # Allocate buffer and get parameter list
-    num_params = size[] ÷ sizeof(UInt32)
-    param_ids = zeros(UInt32, num_params)
+    try
+        # Get children of this node
+        children = ObjectiveC.msgSend(node, "children", ObjectiveC.Object)
 
-    status = ccall((:AudioUnitGetProperty, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt32}, Ptr{UInt32}),
-                  instance, kAudioUnitProperty_ParameterList,
-                  scope, 0, param_ids, size)
+        if isnothing(children) || children == C_NULL
+            return
+        end
 
-    if status != noErr
-        return UInt32[]
+        # Convert to Julia array
+        children_array = objc_array_to_julia(children)
+
+        for child in children_array
+            if isnothing(child) || child == C_NULL
+                continue
+            end
+
+            try
+                # Check if this is a parameter or a group
+                # AUParameter has an 'address' property, AUParameterGroup does not
+                # We can try to get the address to check
+
+                is_param = false
+                try
+                    address = ObjectiveC.msgSend(child, "address", UInt64)
+                    is_param = true
+                catch
+                    # Not a parameter, might be a group
+                    is_param = false
+                end
+
+                if is_param
+                    # Extract parameter info and add to list
+                    try
+                        address = ObjectiveC.msgSend(child, "address", UInt64)
+                        info = extract_parameter_info(child)
+
+                        if !isnothing(info)
+                            push!(params, AudioUnitParameter(
+                                UInt32(address),
+                                scope,
+                                0,
+                                info
+                            ))
+                        end
+                    catch e
+                        @debug "Failed to extract parameter info: $e"
+                    end
+                else
+                    # This is a group, recursively traverse it
+                    traverse_parameter_tree(child, params, scope)
+                end
+            catch e
+                @debug "Error processing parameter tree node: $e"
+                continue
+            end
+        end
+    catch e
+        @debug "Error traversing parameter tree: $e"
     end
-
-    return param_ids
 end
 
+"""
+    extract_parameter_info(param::ObjectiveC.Object) -> Union{AudioUnitParameterInfo, Nothing}
+
+Extract detailed information from an AUParameter object.
+"""
+function extract_parameter_info(param::ObjectiveC.Object)
+    if isnothing(param) || param == C_NULL
+        return nothing
+    end
+
+    try
+        # Get parameter name
+        display_name_obj = ObjectiveC.msgSend(param, "displayName", ObjectiveC.Object)
+        name = nsstring_to_julia(display_name_obj)
+
+        if isempty(name)
+            name_obj = ObjectiveC.msgSend(param, "identifier", ObjectiveC.Object)
+            name = nsstring_to_julia(name_obj)
+        end
+
+        # Get parameter unit and unit name
+        unit_obj = ObjectiveC.msgSend(param, "unit", UInt32)
+        unit_name = parameter_unit_to_string(unit_obj)
+
+        # Get parameter range values
+        min_value = ObjectiveC.msgSend(param, "minValue", Float32)
+        max_value = ObjectiveC.msgSend(param, "maxValue", Float32)
+
+        # Get current value (as default)
+        current_value = ObjectiveC.msgSend(param, "value", Float32)
+
+        # Get flags
+        flags = ObjectiveC.msgSend(param, "flags", UInt32)
+
+        return AudioUnitParameterInfo(
+            name,
+            unit_name,
+            Float32(min_value),
+            Float32(max_value),
+            Float32(current_value),
+            UInt32(flags)
+        )
+    catch e
+        @debug "Failed to extract parameter info: $e"
+        return nothing
+    end
+end
+
+"""
+    parameter_unit_to_string(unit::UInt32) -> String
+
+Convert a parameter unit code to a human-readable string.
+"""
 function parameter_unit_to_string(unit::UInt32)::String
     unit_names = Dict(
         kAudioUnitParameterUnit_Generic => "Generic",

@@ -1,9 +1,9 @@
-# AudioUnit Types and Structures
+# AudioUnit Types and Structures for AUv3
 
 """
     AudioUnitType
 
-Enumeration of AudioUnit types.
+Enumeration of AudioUnit types (compatible with AUv2 and AUv3).
 """
 @enum AudioUnitType begin
     kAudioUnitType_Output = 0x61756f75  # 'auou'
@@ -59,11 +59,24 @@ end
 """
     AudioUnit
 
-Represents a loaded AudioUnit instance.
+Represents a loaded AUv3 AudioUnit instance.
+
+Fields:
+- component: ObjectiveC.Object (AVAudioUnitComponent) - describes the available component
+- instance: ObjectiveC.Object (AUAudioUnit) - the instantiated AudioUnit
+- name: String - display name
+- manufacturer: String - manufacturer name
+- version: UInt32 - version number
+- au_type: AudioUnitType - type of audio unit
+- subtype: UInt32 - subtype identifier
+- initialized: Bool - whether resources have been allocated
+- parameter_tree: ObjectiveC.Object - cached parameter tree for performance
+- render_block: ObjectiveC.Block - cached render block for processing
+- allocated_resources: Bool - whether render resources are allocated
 """
 mutable struct AudioUnit
-    component::Ptr{Cvoid}
-    instance::Ptr{Cvoid}
+    component::Any  # ObjectiveC.Object (AVAudioUnitComponent)
+    instance::Any   # ObjectiveC.Object (AUAudioUnit)
     name::String
     manufacturer::String
     version::UInt32
@@ -71,10 +84,22 @@ mutable struct AudioUnit
     subtype::UInt32
     initialized::Bool
 
-    function AudioUnit(component::Ptr{Cvoid}, instance::Ptr{Cvoid},
-                      name::String, manufacturer::String, version::UInt32,
-                      au_type::AudioUnitType, subtype::UInt32)
-        new(component, instance, name, manufacturer, version, au_type, subtype, false)
+    # AUv3-specific fields
+    parameter_tree::Any  # Union{ObjectiveC.Object, Nothing}
+    render_block::Any    # Union{ObjectiveC.Block, Nothing}
+    allocated_resources::Bool
+
+    function AudioUnit(
+        component::Any,
+        instance::Any,
+        name::String,
+        manufacturer::String,
+        version::UInt32,
+        au_type::AudioUnitType,
+        subtype::UInt32
+    )
+        new(component, instance, name, manufacturer, version, au_type, subtype,
+            false, nothing, nothing, false)
     end
 end
 
@@ -146,6 +171,45 @@ struct AudioTimeStampInfo
     sample_rate::Float64
     flags::UInt32
 end
+
+"""
+    AudioEngine
+
+Represents an AVAudioEngine for connecting and processing AudioUnits.
+
+AUv3 uses AVAudioEngine instead of AUGraph for building audio processing chains.
+This provides realtime audio processing with automatic buffer management.
+
+Fields:
+- engine: ObjectiveC.Object (AVAudioEngine) - the underlying audio engine
+- nodes: Dict{AudioUnit, ObjectiveC.Object} - mapping of AudioUnits to AVAudioNodes
+- player_node: ObjectiveC.Object or nothing - optional input player node for offline processing
+- output_node: ObjectiveC.Object (AVAudioOutputNode) - the engine's output node
+- initialized: Bool - whether the engine has been initialized
+- running: Bool - whether the engine is currently processing audio
+"""
+mutable struct AudioEngine
+    engine::Any  # ObjectiveC.Object (AVAudioEngine)
+    nodes::Dict{AudioUnit, Any}  # Maps AU to AVAudioNode
+    player_node::Any  # Union{ObjectiveC.Object, Nothing}
+    output_node::Any  # ObjectiveC.Object (AVAudioOutputNode)
+    initialized::Bool
+    running::Bool
+
+    function AudioEngine(
+        engine::Any,
+        nodes::Dict{AudioUnit, Any},
+        player_node::Any,
+        output_node::Any,
+        initialized::Bool,
+        running::Bool
+    )
+        new(engine, nodes, player_node, output_node, initialized, running)
+    end
+end
+
+# For backwards compatibility with code using AudioGraph name
+const AudioGraph = AudioEngine
 
 # AudioUnit Property IDs
 const kAudioUnitProperty_ClassInfo = 0
