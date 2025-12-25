@@ -34,7 +34,7 @@ function parameters(au::AudioUnit; scope::UInt32 = kAudioUnitScope_Global)
         error("AudioUnit must be initialized before accessing parameters")
     end
 
-    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+    if isnothing(au.parameter_tree) || au.parameter_tree == nil
         @debug "Parameter tree is null, returning empty parameter list"
         return AudioUnitParameter[]
     end
@@ -60,19 +60,15 @@ function parameterinfo(au::AudioUnit, param_id::UInt32,
         error("AudioUnit must be initialized before accessing parameters")
     end
 
-    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+    if isnothing(au.parameter_tree) || au.parameter_tree == nil
         return nothing
     end
 
     # Find parameter by address
-    param = ObjectiveC.msgSend(
-        au.parameter_tree,
-        "parameterWithAddress:",
-        UInt64(param_id),
-        ObjectiveC.Object
-    )
+    addr = UInt64(param_id)
+    param = @objc [au.parameter_tree::id{AUParameterTree} parameterWithAddress:addr::UInt64]::id{AUParameter}
 
-    if isnothing(param) || param == C_NULL
+    if isnothing(param) || param == nil
         return nothing
     end
 
@@ -101,31 +97,27 @@ value = parametervalue(au, param_id)
 ```
 """
 function parametervalue(au::AudioUnit, param_id::UInt32;
-                       scope::UInt32 = kAudioUnitScope_Global,
-                       element::UInt32 = 0,
-                       offset::UInt32 = 0)
+                       scope = kAudioUnitScope_Global,
+                       element = 0,
+                       offset = 0)
     if !au.initialized
         error("AudioUnit must be initialized before accessing parameters")
     end
 
-    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+    if isnothing(au.parameter_tree) || au.parameter_tree == nil
         error("Parameter tree is null")
     end
 
     # Find parameter by address
-    param = ObjectiveC.msgSend(
-        au.parameter_tree,
-        "parameterWithAddress:",
-        UInt64(param_id),
-        ObjectiveC.Object
-    )
+    addr = UInt64(param_id)
+    param = @objc [au.parameter_tree::id{AUParameterTree} parameterWithAddress:addr::UInt64]::id{AUParameter}
 
-    if isnothing(param) || param == C_NULL
+    if isnothing(param) || param == nil
         error("Parameter with address $param_id not found")
     end
 
     # Get parameter value
-    value = ObjectiveC.msgSend(param, "value", Float32)
+    value = @objc [param::id{AUParameter} value]::Float32
 
     return Float32(value)
 end
@@ -152,39 +144,35 @@ setparametervalue!(au, param_id, 0.5)
 ```
 """
 function setparametervalue!(au::AudioUnit, param_id::UInt32, value::Real;
-                           scope::UInt32 = kAudioUnitScope_Global,
-                           element::UInt32 = 0,
-                           offset::UInt32 = 0)
+                           scope = kAudioUnitScope_Global,
+                           element = 0,
+                           offset = 0)
     if !au.initialized
         error("AudioUnit must be initialized before setting parameters")
     end
 
-    if isnothing(au.parameter_tree) || au.parameter_tree == C_NULL
+    if isnothing(au.parameter_tree) || au.parameter_tree == nil
         @error "Parameter tree is null"
         return false
     end
 
     try
         # Find parameter by address
-        param = ObjectiveC.msgSend(
-            au.parameter_tree,
-            "parameterWithAddress:",
-            UInt64(param_id),
-            ObjectiveC.Object
-        )
+        addr = UInt64(param_id)
+        param = @objc [au.parameter_tree::id{AUParameterTree} parameterWithAddress:addr::UInt64]::id{AUParameter}
 
-        if isnothing(param) || param == C_NULL
+        if isnothing(param) || param == nil
             @error "Parameter with address $param_id not found"
             return false
         end
 
         # Clamp value to parameter range
-        min_val = ObjectiveC.msgSend(param, "minValue", Float32)
-        max_val = ObjectiveC.msgSend(param, "maxValue", Float32)
+        min_val = @objc [param::id{AUParameter} minValue]::Float32
+        max_val = @objc [param::id{AUParameter} maxValue]::Float32
         clamped_value = clamp(Float32(value), min_val, max_val)
 
         # Set the parameter value via the parameter's setValue method
-        ObjectiveC.msgSend(param, "setValue:", clamped_value)
+        @objc [param::id{AUParameter} setValue:clamped_value::Float32]::Nothing
 
         return true
     catch e
@@ -205,16 +193,16 @@ Recursively traverse the AUParameterTree and collect all parameters.
 The tree structure can have parameter groups (like AUParameterGroup) containing
 individual parameters (AUParameter). This function recursively explores the tree.
 """
-function traverse_parameter_tree(node::ObjectiveC.Object, params::Vector{AudioUnitParameter}, scope::UInt32)
-    if isnothing(node) || node == C_NULL
+function traverse_parameter_tree(node, params::Vector{AudioUnitParameter}, scope::UInt32)
+    if isnothing(node) || node == nil
         return
     end
 
     try
         # Get children of this node
-        children = ObjectiveC.msgSend(node, "children", ObjectiveC.Object)
+        children = @objc [node::id{AUParameterNode} children]::id{NSArray}
 
-        if isnothing(children) || children == C_NULL
+        if isnothing(children) || children == nil
             return
         end
 
@@ -222,28 +210,20 @@ function traverse_parameter_tree(node::ObjectiveC.Object, params::Vector{AudioUn
         children_array = objc_array_to_julia(children)
 
         for child in children_array
-            if isnothing(child) || child == C_NULL
+            if isnothing(child) || child == nil
                 continue
             end
 
             try
-                # Check if this is a parameter or a group
-                # AUParameter has an 'address' property, AUParameterGroup does not
-                # We can try to get the address to check
+                # Check if this is a parameter or a group using respondsToSelector
+                # AUParameter responds to 'value', AUParameterGroup does not
+                value_selector = sel"value"
+                responds = @objc [child::id{Object} respondsToSelector:value_selector::Ptr{Cvoid}]::Bool
 
-                is_param = false
-                try
-                    address = ObjectiveC.msgSend(child, "address", UInt64)
-                    is_param = true
-                catch
-                    # Not a parameter, might be a group
-                    is_param = false
-                end
-
-                if is_param
-                    # Extract parameter info and add to list
+                if responds
+                    # This is an AUParameter - extract info and add to list
                     try
-                        address = ObjectiveC.msgSend(child, "address", UInt64)
+                        address = @objc [child::id{AUParameter} address]::UInt64
                         info = extract_parameter_info(child)
 
                         if !isnothing(info)
@@ -272,38 +252,38 @@ function traverse_parameter_tree(node::ObjectiveC.Object, params::Vector{AudioUn
 end
 
 """
-    extract_parameter_info(param::ObjectiveC.Object) -> Union{AudioUnitParameterInfo, Nothing}
+    extract_parameter_info(param) -> Union{AudioUnitParameterInfo, Nothing}
 
 Extract detailed information from an AUParameter object.
 """
-function extract_parameter_info(param::ObjectiveC.Object)
-    if isnothing(param) || param == C_NULL
+function extract_parameter_info(param)
+    if isnothing(param) || param == nil
         return nothing
     end
 
     try
         # Get parameter name
-        display_name_obj = ObjectiveC.msgSend(param, "displayName", ObjectiveC.Object)
+        display_name_obj = @objc [param::id{AUParameter} displayName]::id{NSString}
         name = nsstring_to_julia(display_name_obj)
 
         if isempty(name)
-            name_obj = ObjectiveC.msgSend(param, "identifier", ObjectiveC.Object)
+            name_obj = @objc [param::id{AUParameter} identifier]::id{NSString}
             name = nsstring_to_julia(name_obj)
         end
 
         # Get parameter unit and unit name
-        unit_obj = ObjectiveC.msgSend(param, "unit", UInt32)
+        unit_obj = @objc [param::id{AUParameter} unit]::UInt32
         unit_name = parameter_unit_to_string(unit_obj)
 
         # Get parameter range values
-        min_value = ObjectiveC.msgSend(param, "minValue", Float32)
-        max_value = ObjectiveC.msgSend(param, "maxValue", Float32)
+        min_value = @objc [param::id{AUParameter} minValue]::Float32
+        max_value = @objc [param::id{AUParameter} maxValue]::Float32
 
         # Get current value (as default)
-        current_value = ObjectiveC.msgSend(param, "value", Float32)
+        current_value = @objc [param::id{AUParameter} value]::Float32
 
         # Get flags
-        flags = ObjectiveC.msgSend(param, "flags", UInt32)
+        flags = @objc [param::id{AUParameter} flags]::UInt32
 
         return AudioUnitParameterInfo(
             name,

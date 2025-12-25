@@ -64,36 +64,32 @@ function findaudiounits(type::Union{AudioUnitType, Nothing} = nothing)
     end
 
     # Get the shared component manager (AUv3 API)
-    manager = ObjectiveC.msgSend(
-        AVAudioUnitComponentManager,
-        "sharedAudioUnitComponentManager",
-        ObjectiveC.Object
-    )
+    manager = @objc [AVAudioUnitComponentManager sharedAudioUnitComponentManager]::id{AVAudioUnitComponentManager}
 
-    if isnothing(manager) || manager == C_NULL
+    if isnothing(manager) || manager == nil
         @error "Failed to get AVAudioUnitComponentManager"
         return units
     end
 
     # Get array of components
     components = if isnothing(type)
-        # Get all components
-        ObjectiveC.msgSend(manager, "components", ObjectiveC.Object)
+        # Get all components - use wildcard description
+        # A description with all zeros acts as wildcard
+        desc = create_audio_component_description(UInt32(0), UInt32(0), UInt32(0))
+        desc_ref = Ref(desc)
+        @objc [manager::id{AVAudioUnitComponentManager} componentsMatchingDescription:desc_ref::Ptr{AudioComponentDescription}]::id{NSArray}
     else
         # Create a description for filtering
         type_code = UInt32(type)
-        desc = create_audio_component_description(type_code, 0, 0)
+        desc = create_audio_component_description(type_code, UInt32(0), UInt32(0))
 
         # Get components matching description
-        ObjectiveC.msgSend(
-            manager,
-            "componentsMatchingDescription:",
-            desc,
-            ObjectiveC.Object
-        )
+        # Note: componentsMatchingDescription expects AudioComponentDescription struct by pointer
+        desc_ref = Ref(desc)
+        @objc [manager::id{AVAudioUnitComponentManager} componentsMatchingDescription:desc_ref::Ptr{AudioComponentDescription}]::id{NSArray}
     end
 
-    if isnothing(components) || components == C_NULL
+    if isnothing(components) || components == nil
         return units
     end
 
@@ -152,29 +148,21 @@ function load(type::AudioUnitType, subtype::UInt32)
     end
 
     # Get the shared component manager
-    manager = ObjectiveC.msgSend(
-        AVAudioUnitComponentManager,
-        "sharedAudioUnitComponentManager",
-        ObjectiveC.Object
-    )
+    manager = @objc [AVAudioUnitComponentManager sharedAudioUnitComponentManager]::id{AVAudioUnitComponentManager}
 
-    if isnothing(manager) || manager == C_NULL
+    if isnothing(manager) || manager == nil
         error("Failed to get AVAudioUnitComponentManager")
     end
 
     # Create a description for the component we want to load
     type_code = UInt32(type)
-    desc = create_audio_component_description(type_code, subtype, 0)
+    desc = create_audio_component_description(type_code, subtype, UInt32(0))
 
     # Find matching components
-    components = ObjectiveC.msgSend(
-        manager,
-        "componentsMatchingDescription:",
-        desc,
-        ObjectiveC.Object
-    )
+    desc_ref = Ref(desc)
+    components = @objc [manager::id{AVAudioUnitComponentManager} componentsMatchingDescription:desc_ref::Ptr{AudioComponentDescription}]::id{NSArray}
 
-    if isnothing(components) || components == C_NULL
+    if isnothing(components) || components == nil
         error("AudioUnit with type $(type) and subtype $(subtype) not found")
     end
 
@@ -195,22 +183,27 @@ function load(type::AudioUnitType, subtype::UInt32)
     # Asynchronously instantiate the AudioUnit
     # We wrap the async call synchronously using objc_await
     au_instance = objc_await() do completion_handler
-        # Create completion block
-        # TODO: Update to use @objcblock from ObjectiveC.jl v3
-        # block = @objcblock (au, err) -> begin
-        #     completion_handler(au, err)
-        #     return nothing
-        # end
-        error("Async AudioUnit loading not yet implemented - requires ObjectiveC.jl v3 @objcblock integration")
+        # Create completion handler function that retains the object and returns nothing
+        handler = (au, err) -> begin
+            # Retain the AudioUnit inside the callback before the autorelease pool drains
+            if au != nil
+                ccall(:objc_retain, Ptr{Cvoid}, (Ptr{Cvoid},), reinterpret(Ptr{Cvoid}, au))
+            end
+            completion_handler(au, err)
+            return nothing
+        end
 
-        # Call async instantiation
-        ObjectiveC.msgSend(
-            AUAudioUnit,
-            "instantiateWithComponentDescription:options:completionHandler:",
-            component_obj,  # AudioComponentDescription
-            UInt32(0),       # options
-            block            # completion handler
-        )
+        # Create completion block using @objcblock
+        # Syntax: @objcblock callable ReturnType (ArgType1, ArgType2, ...)
+        block = @objcblock handler Nothing (id{AUAudioUnit}, id{NSError})
+
+        # Call async instantiation using AUAudioUnit class method
+        # Need to get the audio component description from the component
+        desc_obj = @objc [component_obj::id{Object} audioComponentDescription]::AudioComponentDescription
+        desc_ref = Ref(desc_obj)
+        options = UInt32(0)
+
+        @objc [AUAudioUnit instantiateWithComponentDescription:desc_ref::Ptr{AudioComponentDescription} options:options::UInt32 completionHandler:block::id{Object}]::Nothing
     end
 
     # Create AudioUnit struct
@@ -243,32 +236,28 @@ function initialize(au::AudioUnit)
         return true
     end
 
-    if isnothing(au.instance) || au.instance == C_NULL
+    if isnothing(au.instance) || au.instance == nil
         error("AudioUnit instance is null")
     end
 
     # Allocate render resources
-    error_ref = Ref{ObjectiveC.Object}(C_NULL)
-    success = ObjectiveC.msgSend(
-        au.instance,
-        "allocateRenderResourcesAndReturnError:",
-        error_ref,
-        Bool
-    )
+    # Create error pointer (NSError** in Objective-C)
+    error_ref = Ref{id{NSError}}()
+    success = @objc [au.instance::id{AUAudioUnit} allocateRenderResourcesAndReturnError:error_ref::Ptr{id{NSError}}]::Bool
 
     if !success
-        err_desc = get_nserror_description(error_ref[])
-        @error "Failed to allocate render resources: $err_desc"
+        if isdefined(error_ref, 1)
+            err_desc = get_nserror_description(error_ref[])
+            @error "Failed to allocate render resources: $err_desc"
+        else
+            @error "Failed to allocate render resources: unknown error"
+        end
         return false
     end
 
     # Cache parameter tree for performance
     try
-        au.parameter_tree = ObjectiveC.msgSend(
-            au.instance,
-            "parameterTree",
-            ObjectiveC.Object
-        )
+        au.parameter_tree = @objc [au.instance::id{AUAudioUnit} parameterTree]::id{AUParameterTree}
     catch e
         @debug "Failed to cache parameter tree: $e"
         au.parameter_tree = nothing
@@ -276,11 +265,7 @@ function initialize(au::AudioUnit)
 
     # Cache render block for processing
     try
-        au.render_block = ObjectiveC.msgSend(
-            au.instance,
-            "internalRenderBlock",
-            ObjectiveC.Object
-        )
+        au.render_block = @objc [au.instance::id{AUAudioUnit} internalRenderBlock]::id{Object}
     catch e
         @debug "Failed to cache render block: $e"
         au.render_block = nothing
@@ -308,7 +293,7 @@ function uninitialize(au::AudioUnit)
 
     if au.allocated_resources
         try
-            ObjectiveC.msgSend(au.instance, "deallocateRenderResources")
+            @objc [au.instance::id{AUAudioUnit} deallocateRenderResources]::Nothing
             au.allocated_resources = false
         catch e
             @error "Failed to deallocate render resources: $e"
@@ -349,33 +334,33 @@ end
 # ============================================================================
 
 """
-    extract_audiounit_info(component::ObjectiveC.Object) -> Union{AudioUnitInfo, Nothing}
+    extract_audiounit_info(component) -> Union{AudioUnitInfo, Nothing}
 
 Extract AudioUnitInfo from an AVAudioUnitComponent object.
 """
-function extract_audiounit_info(component::ObjectiveC.Object)
-    if isnothing(component) || component == C_NULL
+function extract_audiounit_info(component)
+    if isnothing(component) || component == nil
         return nothing
     end
 
     try
         # Get name
-        name_obj = ObjectiveC.msgSend(component, "name", ObjectiveC.Object)
+        name_obj = @objc [component::id{AVAudioUnitComponent} name]::id{NSString}
         name = nsstring_to_julia(name_obj)
 
         # Get manufacturer name
-        mfr_obj = ObjectiveC.msgSend(component, "manufacturerName", ObjectiveC.Object)
+        mfr_obj = @objc [component::id{AVAudioUnitComponent} manufacturerName]::id{NSString}
         manufacturer = nsstring_to_julia(mfr_obj)
 
         # Get version
-        version = ObjectiveC.msgSend(component, "version", UInt32)
+        version = @objc [component::id{AVAudioUnitComponent} version]::UInt32
 
         # Get component description
-        desc_obj = ObjectiveC.msgSend(component, "audioComponentDescription", ObjectiveC.Object)
+        desc_obj = @objc [component::id{AVAudioUnitComponent} audioComponentDescription]::AudioComponentDescription
 
         # Extract type and subtype from description
-        au_type = ObjectiveC.msgSend(desc_obj, "componentType", UInt32)
-        subtype = ObjectiveC.msgSend(desc_obj, "componentSubType", UInt32)
+        au_type = desc_obj.componentType
+        subtype = desc_obj.componentSubType
 
         # Convert type to enum
         type_enum = try
