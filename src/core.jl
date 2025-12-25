@@ -388,5 +388,3 @@ function extract_audiounit_info(component::ObjectiveC.Object)
         return nothing
     end
 end
-
-end  # module core

@@ -14,6 +14,7 @@ Returns a formatted string with:
 # Examples
 ```julia
 au = load("AULowpass")
+initialize(au)
 println(documentation(au))
 ```
 """
@@ -28,80 +29,44 @@ function documentation(au::AudioUnit)
     # Basic information
     println(io, "Manufacturer: ", au.manufacturer)
     println(io, "Type: ", au.au_type)
-    println(io, "Subtype: ", fourcc_to_string(au.subtype), " (0x", string(au.subtype, base=16), ")")
-
-    # Version number (format: 0xMMMMmmBB where M=major, m=minor, B=bugfix)
-    major = (au.version >> 16) & 0xFFFF
-    minor = (au.version >> 8) & 0xFF
-    bugfix = au.version & 0xFF
-    println(io, "Version: ", major, ".", minor, ".", bugfix)
+    println(io, "Version: ", au.version)
     println(io)
 
     # Capabilities
     println(io, "Capabilities:")
     println(io, "  - Effects Processing: ", supportseffects(au) ? "Yes" : "No")
     println(io, "  - MIDI Input: ", supportsmidi(au) ? "Yes" : "No")
-    println(io, "  - Bypass Support: ", canbypass(au) ? "Yes" : "No")
     println(io)
-
-    # Channel configurations
-    println(io, "Supported Channel Configurations:")
-    configs = channelcapabilities(au)
-    for config in configs
-        in_ch = config.input_channels
-        out_ch = config.output_channels
-
-        # Negative values indicate flexible channel counts
-        in_str = in_ch < 0 ? "any" : string(in_ch)
-        out_str = out_ch < 0 ? "any" : string(out_ch)
-
-        println(io, "  - Input: ", in_str, " channels, Output: ", out_str, " channels")
-    end
-    println(io)
-
-    # Latency and tail (if initialized)
-    if au.initialized
-        lat = latency(au)
-        tail = tailtime(au)
-
-        if lat > 0
-            println(io, "Latency: ", round(lat * 1000, digits=2), " ms")
-        end
-        if tail > 0
-            println(io, "Tail Time: ", round(tail, digits=3), " seconds")
-        end
-        if lat > 0 || tail > 0
-            println(io)
-        end
-    end
 
     # Parameters
-    params = parameters(au)
+    if au.initialized
+        params = parameters(au)
 
-    if !isempty(params)
-        println(io, "Parameters (", length(params), " total):")
-        println(io, "-" ^ 70)
+        if !isempty(params)
+            println(io, "Parameters (", length(params), " total):")
+            println(io, "-" ^ 70)
 
-        for param in params
-            info = param.info
-            println(io)
-            println(io, "  Name: ", info.name)
-            println(io, "  ID: ", param.id)
-            println(io, "  Range: ", info.min_value, " to ", info.max_value, " ", info.unit_name)
-            println(io, "  Default: ", info.default_value)
+            for param in params
+                info = param.info
+                println(io)
+                println(io, "  Name: ", info.name)
+                println(io, "  ID: ", param.id)
+                println(io, "  Range: ", info.min_value, " to ", info.max_value, " ", info.unit_name)
+                println(io, "  Default: ", info.default_value)
 
-            # Show current value if initialized
-            if au.initialized
+                # Show current value if initialized
                 try
-                    current = parametervalue(au, param.id, scope=param.scope)
+                    current = parametervalue(au, param.id)
                     println(io, "  Current: ", current)
                 catch
                     # Some parameters may not be readable
                 end
             end
+        else
+            println(io, "No parameters available")
         end
     else
-        println(io, "No parameters available")
+        println(io, "Initialize the AudioUnit to view parameters")
     end
 
     println(io)

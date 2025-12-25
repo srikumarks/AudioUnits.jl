@@ -1,856 +1,380 @@
-# AUGraph functionality for connecting and processing AudioUnits
+# AVAudioEngine functionality for AUv3 - replacing AUGraph
+#
+# AUv3 uses AVAudioEngine instead of the legacy AUGraph.
+# This module provides graph-like functionality using AVAudioEngine.
+#
+# Note: AVAudioEngine is primarily designed for realtime audio processing.
+# Offline processing with it is Phase 8 work - currently this is a stub.
 
-using SampledSignals
+# AudioEngine is defined in types.jl
+# Keep AudioGraph as an alias for backward compatibility
+const AudioGraph = AudioEngine
 
-"""
-    AudioGraph
-
-Represents an Audio Unit Graph (AUGraph) for connecting and processing AudioUnits.
-
-An AudioGraph can operate in two modes:
-1. **Realtime mode**: Automatically processes audio through connected AudioUnits with hardware I/O
-2. **Driven mode**: Synchronously processes audio buffers provided by the client
-
-# Fields
-- `graph::Ptr{Cvoid}`: Pointer to the underlying AUGraph
-- `nodes::Dict{AudioUnit, Int32}`: Map of AudioUnits to their node IDs in the graph
-- `initialized::Bool`: Whether the graph has been initialized
-- `running::Bool`: Whether the graph is currently running (realtime mode)
-"""
-mutable struct AudioGraph
-    graph::Ptr{Cvoid}
-    nodes::Dict{AudioUnit, Int32}
-    output_node::Int32
-    initialized::Bool
-    running::Bool
-
-    function AudioGraph()
-        graph_ref = Ref{Ptr{Cvoid}}()
-        status = ccall((:NewAUGraph, AudioToolbox), Int32, (Ptr{Ptr{Cvoid}},), graph_ref)
-
-        if status != noErr
-            error("Failed to create AUGraph: OSStatus $status")
-        end
-
-        new(graph_ref[], Dict{AudioUnit, Int32}(), -1, false, false)
-    end
-end
+# ============================================================================
+# Constructor
+# ============================================================================
 
 """
-    addnode!(graph::AudioGraph, au::AudioUnit) -> Int32
+    AudioEngine()
 
-Add an AudioUnit to the graph and return its node ID.
+Create a new AVAudioEngine for AUv3 audio graph management.
 
-# Examples
-```julia
-graph = AudioGraph()
-au = load("AULowpass")
-node_id = addnode!(graph, au)
-```
+**Note:** Phase 8 work - currently a stub. Use AudioProcessor for
+block-based offline processing instead.
 """
-function addnode!(graph::AudioGraph, au::AudioUnit)
-    # Create AudioComponentDescription for the node
-    desc = AudioComponentDescription(
-        UInt32(au.au_type),
-        au.subtype,
-        0,  # manufacturer (0 = any)
-        0,  # flags
-        0   # flags mask
+function AudioEngine()
+    @warn "AVAudioEngine is Phase 8 work (not yet fully implemented for AUv3)"
+
+    # Create AVAudioEngine
+    engine = ObjectiveC.msgSend(
+        AVAudioEngine,
+        "alloc",
+        ObjectiveC.Object
     )
 
-    node_ref = Ref{Int32}()
-    status = ccall((:AUGraphAddNode, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ref{AudioComponentDescription}, Ptr{Int32}),
-                  graph.graph, Ref(desc), node_ref)
-
-    if status != noErr
-        error("Failed to add node to graph: OSStatus $status")
-    end
-
-    node_id = node_ref[]
-    graph.nodes[au] = node_id
-
-    # Get the AudioUnit instance from the node
-    au_ref = Ref{Ptr{Cvoid}}()
-    status = ccall((:AUGraphNodeInfo, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Int32, Ptr{Cvoid}, Ptr{Ptr{Cvoid}}),
-                  graph.graph, node_id, C_NULL, au_ref)
-
-    if status != noErr
-        error("Failed to get AudioUnit from node: OSStatus $status")
-    end
-
-    # Update the AudioUnit's instance pointer
-    au.instance = au_ref[]
-
-    return node_id
-end
-
-"""
-    addoutputnode!(graph::AudioGraph) -> Int32
-
-Add a default audio output node to the graph for realtime mode.
-
-# Examples
-```julia
-graph = AudioGraph()
-output_id = addoutputnode!(graph)
-```
-"""
-function addoutputnode!(graph::AudioGraph)
-    # kAudioUnitType_Output, kAudioUnitSubType_DefaultOutput
-    desc = AudioComponentDescription(
-        0x61756f75,  # 'auou' - kAudioUnitType_Output
-        0x64656620,  # 'def ' - kAudioUnitSubType_DefaultOutput
-        0,
-        0,
-        0
+    engine = ObjectiveC.msgSend(
+        engine,
+        "init",
+        ObjectiveC.Object
     )
 
-    node_ref = Ref{Int32}()
-    status = ccall((:AUGraphAddNode, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ref{AudioComponentDescription}, Ptr{Int32}),
-                  graph.graph, Ref(desc), node_ref)
-
-    if status != noErr
-        error("Failed to add output node: OSStatus $status")
+    if isnothing(engine) || engine == C_NULL
+        error("Failed to create AVAudioEngine")
     end
 
-    graph.output_node = node_ref[]
-    return node_ref[]
+    # Get the output node
+    output_node = ObjectiveC.msgSend(
+        engine,
+        "outputNode",
+        ObjectiveC.Object
+    )
+
+    return AudioEngine(engine, Dict{AudioUnit, Any}(), nothing, output_node, false, false)
+end
+
+# ============================================================================
+# Node Management
+# ============================================================================
+
+"""
+    addnode!(engine::AudioEngine, au::AudioUnit) -> Any
+
+Add an AUv3 AudioUnit to the engine as a node.
+
+**Note:** Phase 8 work - not yet fully implemented.
+"""
+function addnode!(engine::AudioEngine, au::AudioUnit)
+    @warn "addnode! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if isnothing(au.instance) || au.instance == C_NULL
+        error("AudioUnit instance is null")
+    end
+
+    # Wrap AUAudioUnit in AVAudioUnit (AUv3)
+    av_unit = ObjectiveC.msgSend(
+        AVAudioUnit,
+        "alloc",
+        ObjectiveC.Object
+    )
+
+    av_unit = ObjectiveC.msgSend(
+        av_unit,
+        "initWithAudioUnit:",
+        au.instance,
+        ObjectiveC.Object
+    )
+
+    if isnothing(av_unit) || av_unit == C_NULL
+        error("Failed to create AVAudioUnit from AUAudioUnit")
+    end
+
+    # Attach to engine
+    error_ref = Ref{ObjectiveC.Object}(C_NULL)
+    success = ObjectiveC.msgSend(
+        engine.engine,
+        "attachNode:error:",
+        av_unit,
+        error_ref,
+        Bool
+    )
+
+    if !success
+        err_desc = get_nserror_description(error_ref[])
+        error("Failed to attach node to engine: $err_desc")
+    end
+
+    # Store node
+    engine.nodes[au] = av_unit
+
+    return av_unit
 end
 
 """
-    connect!(graph::AudioGraph, source_node::Int32, dest_node::Int32;
-             source_bus::UInt32=0, dest_bus::UInt32=0)
+    addoutputnode!(engine::AudioEngine) -> Any
 
-Connect two nodes in the graph.
+Add a default audio output node to the engine.
 
-# Arguments
-- `graph::AudioGraph`: The graph containing the nodes
-- `source_node::Int32`: Source node ID
-- `dest_node::Int32`: Destination node ID
-- `source_bus::UInt32`: Output bus of source (default: 0)
-- `dest_bus::UInt32`: Input bus of destination (default: 0)
-
-# Examples
-```julia
-connect!(graph, node1, node2)
-connect!(graph, node1, node2, source_bus=0, dest_bus=1)
-```
+**Note:** Phase 8 work - not yet fully implemented.
 """
-function connect!(graph::AudioGraph, source_node::Int32, dest_node::Int32;
-                  source_bus::UInt32=UInt32(0), dest_bus::UInt32=UInt32(0))
-    status = ccall((:AUGraphConnectNodeInput, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Int32, UInt32, Int32, UInt32),
-                  graph.graph, source_node, source_bus, dest_node, dest_bus)
+function addoutputnode!(engine::AudioEngine)
+    @warn "addoutputnode! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+    return engine.output_node
+end
 
-    if status != noErr
-        error("Failed to connect nodes: OSStatus $status")
+# ============================================================================
+# Connection
+# ============================================================================
+
+"""
+    connect!(engine::AudioEngine, source_au::AudioUnit, dest_au::AudioUnit; kwargs...) -> Bool
+
+Connect two AudioUnits in the engine.
+
+**Note:** Phase 8 work - not yet fully implemented.
+"""
+function connect!(engine::AudioEngine, source_au::AudioUnit, dest_au::AudioUnit;
+                  source_bus::UInt32=0, dest_bus::UInt32=0)
+    @warn "connect! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if !haskey(engine.nodes, source_au)
+        error("Source AudioUnit not in engine")
+    end
+    if !haskey(engine.nodes, dest_au)
+        error("Destination AudioUnit not in engine")
+    end
+
+    source_node = engine.nodes[source_au]
+    dest_node = engine.nodes[dest_au]
+
+    # Get format from source node
+    format = ObjectiveC.msgSend(
+        source_node,
+        "outputFormatForBus:",
+        source_bus,
+        ObjectiveC.Object
+    )
+
+    if isnothing(format) || format == C_NULL
+        error("Failed to get output format from source node")
+    end
+
+    # Connect nodes
+    error_ref = Ref{ObjectiveC.Object}(C_NULL)
+    success = ObjectiveC.msgSend(
+        engine.engine,
+        "connect:to:format:error:",
+        source_node,
+        dest_node,
+        format,
+        error_ref,
+        Bool
+    )
+
+    if !success
+        err_desc = get_nserror_description(error_ref[])
+        error("Failed to connect nodes: $err_desc")
     end
 
     return true
 end
 
-"""
-    initializegraph!(graph::AudioGraph)
+# ============================================================================
+# Graph Initialization
+# ============================================================================
 
-Initialize the graph, preparing all nodes for processing.
-
-# Examples
-```julia
-initializegraph!(graph)
-```
 """
-function initializegraph!(graph::AudioGraph)
-    if graph.initialized
-        @warn "Graph already initialized"
+    initializegraph!(engine::AudioEngine) -> Bool
+
+Initialize the audio engine for processing.
+
+**Note:** Phase 8 work - not yet fully implemented.
+"""
+function initializegraph!(engine::AudioEngine)
+    @warn "initializegraph! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if engine.initialized
+        @warn "Engine already initialized"
         return true
     end
 
-    status = ccall((:AUGraphInitialize, AudioToolbox), Int32,
-                  (Ptr{Cvoid},), graph.graph)
+    error_ref = Ref{ObjectiveC.Object}(C_NULL)
+    success = ObjectiveC.msgSend(
+        engine.engine,
+        "startAndReturnError:",
+        error_ref,
+        Bool
+    )
 
-    if status != noErr
-        error("Failed to initialize graph: OSStatus $status")
+    if !success
+        err_desc = get_nserror_description(error_ref[])
+        error("Failed to initialize engine: $err_desc")
     end
 
-    graph.initialized = true
+    engine.initialized = true
     return true
 end
 
 """
-    uninitializegraph!(graph::AudioGraph)
+    uninitializegraph!(engine::AudioEngine) -> Bool
 
-Uninitialize the graph.
+Uninitialize the audio engine.
 
-# Examples
-```julia
-uninitializegraph!(graph)
-```
+**Note:** Phase 8 work - not yet fully implemented.
 """
-function uninitializegraph!(graph::AudioGraph)
-    if !graph.initialized
+function uninitializegraph!(engine::AudioEngine)
+    @warn "uninitializegraph! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if !engine.initialized
         return true
     end
 
-    if graph.running
-        stopgraph!(graph)
+    if engine.running
+        stopgraph!(engine)
     end
 
-    status = ccall((:AUGraphUninitialize, AudioToolbox), Int32,
-                  (Ptr{Cvoid},), graph.graph)
+    ObjectiveC.msgSend(engine.engine, "stop")
 
-    if status != noErr
-        error("Failed to uninitialize graph: OSStatus $status")
-    end
-
-    graph.initialized = false
+    engine.initialized = false
     return true
 end
 
-"""
-    disposegraph!(graph::AudioGraph)
-
-Dispose of the graph and free its resources.
-
-# Examples
-```julia
-disposegraph!(graph)
-```
-"""
-function disposegraph!(graph::AudioGraph)
-    if graph.running
-        stopgraph!(graph)
-    end
-
-    if graph.initialized
-        uninitializegraph!(graph)
-    end
-
-    status = ccall((:DisposeAUGraph, AudioToolbox), Int32,
-                  (Ptr{Cvoid},), graph.graph)
-
-    if status != noErr
-        @warn "Failed to dispose graph: OSStatus $status"
-    end
-
-    graph.graph = C_NULL
-    empty!(graph.nodes)
-
-    return true
-end
-
-# ==============================================================================
+# ============================================================================
 # Realtime Mode
-# ==============================================================================
+# ============================================================================
 
 """
-    startgraph!(graph::AudioGraph)
+    startgraph!(engine::AudioEngine) -> Bool
 
-Start the graph running in realtime mode.
+Start the audio engine running in realtime mode.
 
-The graph will automatically pull audio through the connected AudioUnits
-and output to the hardware audio device.
-
-# Examples
-```julia
-graph = AudioGraph()
-au = load("DLSMusicDevice")
-node = addnode!(graph, au)
-output = addoutputnode!(graph)
-connect!(graph, node, output)
-initializegraph!(graph)
-
-# Start realtime processing
-startgraph!(graph)
-
-# Send MIDI to make sound
-initialize(au)
-noteon(au, 60, 100)
-sleep(2.0)
-noteoff(au, 60)
-
-# Stop when done
-stopgraph!(graph)
-```
+**Note:** Phase 8 work - not yet fully implemented.
 """
-function startgraph!(graph::AudioGraph)
-    if !graph.initialized
-        error("Graph must be initialized before starting")
+function startgraph!(engine::AudioEngine)
+    @warn "startgraph! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if !engine.initialized
+        error("Engine must be initialized before starting")
     end
 
-    if graph.running
-        @warn "Graph already running"
+    if engine.running
+        @warn "Engine already running"
         return true
     end
 
-    status = ccall((:AUGraphStart, AudioToolbox), Int32,
-                  (Ptr{Cvoid},), graph.graph)
+    error_ref = Ref{ObjectiveC.Object}(C_NULL)
+    success = ObjectiveC.msgSend(
+        engine.engine,
+        "startAndReturnError:",
+        error_ref,
+        Bool
+    )
 
-    if status != noErr
-        error("Failed to start graph: OSStatus $status")
+    if !success
+        err_desc = get_nserror_description(error_ref[])
+        error("Failed to start engine: $err_desc")
     end
 
-    graph.running = true
+    engine.running = true
     return true
 end
 
 """
-    stopgraph!(graph::AudioGraph)
+    stopgraph!(engine::AudioEngine) -> Bool
 
-Stop the graph from running in realtime mode.
+Stop the audio engine from running.
 
-# Examples
-```julia
-stopgraph!(graph)
-```
+**Note:** Phase 8 work - not yet fully implemented.
 """
-function stopgraph!(graph::AudioGraph)
-    if !graph.running
+function stopgraph!(engine::AudioEngine)
+    @warn "stopgraph! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if !engine.running
         return true
     end
 
-    status = ccall((:AUGraphStop, AudioToolbox), Int32,
-                  (Ptr{Cvoid},), graph.graph)
+    ObjectiveC.msgSend(engine.engine, "stop")
 
-    if status != noErr
-        error("Failed to stop graph: OSStatus $status")
-    end
-
-    graph.running = false
+    engine.running = false
     return true
 end
 
-# ==============================================================================
-# Driven Mode (Offline Rendering)
-# ==============================================================================
+# ============================================================================
+# Cleanup
+# ============================================================================
 
 """
-    processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
+    disposegraph!(engine::AudioEngine) -> Bool
 
-Process audio through a specific node in the graph using provided input.
+Dispose of the audio engine and free its resources.
 
-This is the driven/offline mode where you provide input samples and get output samples.
-Works with any buffer size, including small buffers (64, 128 samples).
-
-# Arguments
-- `graph::AudioGraph`: The graph containing the node
-- `node::Int32`: The node ID to render
-- `input::SampleBuf`: Input audio buffer (channels × samples)
-
-# Returns
-- `SampleBuf`: Processed output audio buffer
-
-# Examples
-```julia
-using SampledSignals
-
-# Create graph and add effect
-graph = AudioGraph()
-au = load("AULowpass")
-initialize(au)
-node = addnode!(graph, au)
-initializegraph!(graph)
-
-# Process audio - works with any buffer size
-sr = 44100
-input = SampleBuf(randn(Float32, 2, 128), sr)  # Small 128-sample buffer
-output = processbuffer(graph, node, input)
-```
+**Note:** Phase 8 work - not yet fully implemented.
 """
-function processbuffer(graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) where T
-    if !graph.initialized
-        error("Graph must be initialized before processing")
+function disposegraph!(engine::AudioEngine)
+    @warn "disposegraph! for AVAudioEngine is Phase 8 work (not yet fully implemented)"
+
+    if engine.running
+        stopgraph!(engine)
     end
 
-    # Get the AudioUnit from the node
-    au_ref = Ref{Ptr{Cvoid}}()
-    status = ccall((:AUGraphNodeInfo, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Int32, Ptr{Cvoid}, Ptr{Ptr{Cvoid}}),
-                  graph.graph, node, C_NULL, au_ref)
-
-    if status != noErr
-        error("Failed to get AudioUnit from node: OSStatus $status")
+    if engine.initialized
+        uninitializegraph!(engine)
     end
 
-    au_instance = au_ref[]
+    engine.engine = nothing
+    empty!(engine.nodes)
 
-    # Get input dimensions
-    nchannels = size(input, 1)
-    nframes = size(input, 2)
-    samplerate = Float64(input.samplerate)
+    return true
+end
 
-    # Create output buffer
-    output_data = zeros(T, nchannels, nframes)
+# ============================================================================
+# Processing (Offline Mode)
+# ============================================================================
 
-    # AudioUnits expect non-interleaved (planar) format
-    input_data = collect(input.data)  # Ensure it's a regular array
+"""
+    processbuffer(engine::AudioEngine, au::AudioUnit, input) -> output
 
-    # Create AudioBufferList structure
-    # struct AudioBufferList {
-    #     UInt32 mNumberBuffers;
-    #     AudioBuffer mBuffers[1];  // Variable length
-    # }
-    # struct AudioBuffer {
-    #     UInt32 mNumberChannels;
-    #     UInt32 mDataByteSize;
-    #     void* mData;
-    # }
+Process audio through an AudioUnit in the engine (offline mode).
 
-    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
-    input_buffer_list = zeros(UInt8, buffer_list_size)
-    output_buffer_list = zeros(UInt8, buffer_list_size)
-
-    # Set number of buffers (one per channel for non-interleaved)
-    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
-    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
-
-    # Set up each buffer
-    for ch in 1:nchannels
-        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
-
-        # Input buffer
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))  # mNumberChannels
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))  # mDataByteSize
-        channel_data = view(input_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_data))  # mData
-
-        # Output buffer
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_out = view(output_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
-    end
-
-    # Set up AudioTimeStamp
-    timestamp = zeros(UInt8, 80)  # Size of AudioTimeStamp struct
-    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)  # mSampleTime
-    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))  # mFlags (kAudioTimeStampSampleTimeValid)
-
-    # For offline processing, we need to set up a render callback that provides input data
-    # Create a callback structure: struct AURenderCallbackStruct { AURenderCallback inputProc; void *inputProcRefCon; }
-
-    # Define render callback function
-    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
-                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
-        # Copy input buffer to ioData
-        input_list_ptr = Ptr{UInt8}(inRefCon)
-        if ioData != C_NULL && input_list_ptr != C_NULL
-            # Get number of buffers
-            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            # Copy the buffer list structure
-            copysize = 4 + nbuffers * 16
-            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
-        end
-        return 0  # noErr
-    end
-
-    # Create callback function pointer
-    callback_ptr = @cfunction($render_callback, Int32,
-                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
-
-    # Create AURenderCallbackStruct
-    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
-
-    # Set the render callback on input scope (kAudioUnitProperty_SetRenderCallback = 23)
-    status = ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
-                  au_instance, UInt32(23), UInt32(1), UInt32(0),
-                  callback_struct, UInt32(sizeof(callback_struct)))
-
-    # Note: Ignore errors for callback setup as not all AudioUnits require input callbacks
-
-    # Now render the output using AudioUnitRender
-    action_flags = Ref{UInt32}(0)
-    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
-                  au_instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
-
-    if status != noErr
-        error("Failed to process audio: OSStatus $status")
-    end
-
-    # Create output SampleBuf
-    return SampleBuf(output_data, samplerate)
+**Note:** Phase 8 work - not fully implemented for AUv3.
+Use AudioProcessor instead for reliable block-based offline processing.
+"""
+function processbuffer(engine::AudioEngine, au::AudioUnit, input)
+    @warn "processbuffer for AVAudioEngine is Phase 8 work - use AudioProcessor instead"
+    error("AVAudioEngine offline processing not yet implemented for AUv3")
 end
 
 """
-    processbuffer(au::AudioUnit, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
+    processbuffer(au::AudioUnit, input) -> output
 
-Process audio through a standalone AudioUnit (without a graph).
+Process audio through a standalone AudioUnit (offline mode).
 
-This is a convenience function for processing audio through a single AudioUnit
-without needing to set up a full graph. Works with any buffer size.
-
-# Arguments
-- `au::AudioUnit`: The AudioUnit to process through
-- `input::SampleBuf`: Input audio buffer (any size, e.g., 64, 128, or larger)
-
-# Returns
-- `SampleBuf`: Processed output audio buffer
-
-# Examples
-```julia
-using SampledSignals
-
-au = load("AULowpass")
-initialize(au)
-
-# Set some parameters
-params = parameters(au)
-if !isempty(params)
-    setparametervalue!(au, params[1].id, 0.3)
-end
-
-# Process small buffers for streaming
-input = SampleBuf(randn(Float32, 2, 128), 44100)  # 128 samples
-output = processbuffer(au, input)
-```
+**Note:** For AUv3, use AudioProcessor for reliable block-based processing.
 """
-function processbuffer(au::AudioUnit, input::SampleBuf{T, 2}) where T
-    if !au.initialized
-        error("AudioUnit must be initialized before processing")
-    end
-
-    # Process directly without a graph
-    nchannels = size(input, 1)
-    nframes = size(input, 2)
-    samplerate = Float64(input.samplerate)
-
-    input_data = collect(input.data)
-    output_data = zeros(T, nchannels, nframes)
-
-    # Create AudioBufferLists for both input and output
-    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
-    input_buffer_list = zeros(UInt8, buffer_list_size)
-    output_buffer_list = zeros(UInt8, buffer_list_size)
-
-    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
-    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
-
-    for ch in 1:nchannels
-        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
-
-        # Input buffer
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_in = view(input_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_in))
-
-        # Output buffer
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_out = view(output_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
-    end
-
-    # Set up timestamp
-    timestamp = zeros(UInt8, 80)
-    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)
-    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))
-
-    # Set up render callback to provide input data
-    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
-                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
-        input_list_ptr = Ptr{UInt8}(inRefCon)
-        if ioData != C_NULL && input_list_ptr != C_NULL
-            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = 4 + nbuffers * 16
-            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
-        end
-        return 0
-    end
-
-    callback_ptr = @cfunction($render_callback, Int32,
-                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
-
-    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
-
-    # Set render callback on input scope
-    ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
-          (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
-          au.instance, UInt32(23), UInt32(1), UInt32(0),
-          callback_struct, UInt32(sizeof(callback_struct)))
-
-    # Render the output
-    action_flags = Ref{UInt32}(0)
-    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
-                  au.instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
-
-    if status != noErr
-        error("Failed to render audio: OSStatus $status")
-    end
-
-    return SampleBuf(output_data, samplerate)
-end
-
-# ==============================================================================
-# In-Place Processing (Zero-Allocation)
-# ==============================================================================
-
-"""
-    processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32, input::SampleBuf{T, 2}) -> SampleBuf{T, 2} where T
-
-Process audio through a graph node, writing results to a pre-allocated output buffer.
-
-This is an in-place version that avoids allocations, ideal for streaming with small buffers.
-The output buffer is reused across calls, eliminating GC pressure.
-
-# Arguments
-- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
-- `graph::AudioGraph`: The graph containing the node
-- `node::Int32`: The node ID to render
-- `input::SampleBuf`: Input audio buffer
-
-# Returns
-- `SampleBuf`: The output buffer (same object that was passed in)
-
-# Examples
-```julia
-using SampledSignals
-
-# Create graph
-graph = AudioGraph()
-au = load("AULowpass")
-initialize(au)
-node = addnode!(graph, au)
-initializegraph!(graph)
-
-# Pre-allocate buffers once
-sr = 44100
-bufsize = 128
-input = SampleBuf(zeros(Float32, 2, bufsize), sr)
-output = SampleBuf(zeros(Float32, 2, bufsize), sr)
-
-# Process many buffers without allocation
-for i in 1:1000
-    input.data .= randn(Float32, 2, bufsize)  # Fill with new data
-    processbuffer!(output, graph, node, input)  # No allocation!
-    # ... use output
-end
-```
-"""
-function processbuffer!(output::SampleBuf{T, 2}, graph::AudioGraph, node::Int32,
-                       input::SampleBuf{T, 2}) where T
-    if !graph.initialized
-        error("Graph must be initialized before processing")
-    end
-
-    # Validate output buffer
-    @assert size(output) == size(input) "Output buffer size $(size(output)) must match input size $(size(input))"
-    @assert output.samplerate == input.samplerate "Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)"
-
-    # Get the AudioUnit from the node
-    au_ref = Ref{Ptr{Cvoid}}()
-    status = ccall((:AUGraphNodeInfo, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Int32, Ptr{Cvoid}, Ptr{Ptr{Cvoid}}),
-                  graph.graph, node, C_NULL, au_ref)
-
-    if status != noErr
-        error("Failed to get AudioUnit from node: OSStatus $status")
-    end
-
-    au_instance = au_ref[]
-
-    # Get dimensions
-    nchannels = size(input, 1)
-    nframes = size(input, 2)
-
-    # Use existing buffers (no allocation)
-    input_data = collect(input.data)  # Need a copy for the callback
-    output_data = output.data  # Write directly to output buffer
-
-    # Create AudioBufferList structures
-    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
-    input_buffer_list = zeros(UInt8, buffer_list_size)
-    output_buffer_list = zeros(UInt8, buffer_list_size)
-
-    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
-    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
-
-    # Set up buffer pointers
-    for ch in 1:nchannels
-        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
-
-        # Input buffer
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_data = view(input_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_data))
-
-        # Output buffer - write directly to output.data
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_out = view(output_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
-    end
-
-    # Set up timestamp
-    timestamp = zeros(UInt8, 80)
-    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)
-    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))
-
-    # Set up render callback
-    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
-                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
-        input_list_ptr = Ptr{UInt8}(inRefCon)
-        if ioData != C_NULL && input_list_ptr != C_NULL
-            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = 4 + nbuffers * 16
-            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
-        end
-        return 0
-    end
-
-    callback_ptr = @cfunction($render_callback, Int32,
-                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
-
-    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
-
-    # Set render callback
-    ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
-          (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
-          au_instance, UInt32(23), UInt32(1), UInt32(0),
-          callback_struct, UInt32(sizeof(callback_struct)))
-
-    # Render
-    action_flags = Ref{UInt32}(0)
-    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
-                  au_instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
-
-    if status != noErr
-        error("Failed to process audio: OSStatus $status")
-    end
-
-    return output
+function processbuffer(au::AudioUnit, input)
+    @warn "processbuffer for offline processing with AudioUnits - use AudioProcessor instead for AUv3"
+    error("AudioUnit offline processing not yet implemented for AUv3")
 end
 
 """
-    process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}) where T
+    processbuffer!(output, engine::AudioEngine, au::AudioUnit, input) -> output
 
-Process audio through a standalone AudioUnit, writing results to a pre-allocated output buffer.
+Process audio in-place through an AudioUnit in the engine.
 
-Matches the VST3Host.jl API. Modifies the output buffer in-place, avoiding allocations
-for streaming with small buffers.
-
-# Arguments
-- `au::AudioUnit`: The AudioUnit to process through
-- `input::SampleBuf`: Input audio buffer
-- `output::SampleBuf`: Pre-allocated output buffer (same size and sample rate as input)
-
-# Examples
-```julia
-using SampledSignals
-
-au = load("AULowpass")
-initialize(au)
-
-# Pre-allocate buffers once
-sr = 44100
-bufsize = 128
-input = SampleBuf(zeros(Float32, 2, bufsize), sr)
-output = SampleBuf(zeros(Float32, 2, bufsize), sr)
-
-# Process many buffers without allocation
-for i in 1:1000
-    input.data .= randn(Float32, 2, bufsize)  # Fill with new data
-    process!(au, input, output)  # No allocation!
-    # ... use output
+**Note:** Phase 8 work - use AudioProcessor instead for AUv3.
+"""
+function processbuffer!(output, engine::AudioEngine, au::AudioUnit, input)
+    @warn "processbuffer! for AVAudioEngine is Phase 8 work - use AudioProcessor instead"
+    error("AVAudioEngine offline processing not yet implemented for AUv3")
 end
 
-uninitialize(au)
-dispose(au)
-```
 """
-function process!(au::AudioUnit, input::SampleBuf{T, 2}, output::SampleBuf{T, 2}) where T
-    if !au.initialized
-        error("AudioUnit must be initialized before processing")
-    end
+    process!(au::AudioUnit, input, output) -> output
 
-    # Validate output buffer
-    @assert size(output) == size(input) "Output buffer size $(size(output)) must match input size $(size(input))"
-    @assert output.samplerate == input.samplerate "Output sample rate $(output.samplerate) must match input sample rate $(input.samplerate)"
+Process audio through a standalone AudioUnit in-place.
 
-    # Get dimensions
-    nchannels = size(input, 1)
-    nframes = size(input, 2)
-
-    # Use existing buffers (no allocation)
-    input_data = collect(input.data)  # Need a copy for the callback
-    output_data = output.data  # Write directly to output buffer
-
-    # Create AudioBufferLists
-    buffer_list_size = 4 + nchannels * (4 + 4 + sizeof(Ptr{Cvoid}))
-    input_buffer_list = zeros(UInt8, buffer_list_size)
-    output_buffer_list = zeros(UInt8, buffer_list_size)
-
-    unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list)), UInt32(nchannels))
-    unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list)), UInt32(nchannels))
-
-    for ch in 1:nchannels
-        offset = 4 + (ch - 1) * (4 + 4 + sizeof(Ptr{Cvoid}))
-
-        # Input buffer
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(input_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_in = view(input_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(input_buffer_list) + offset + 8), pointer(channel_in))
-
-        # Output buffer - write directly to output.data
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset), UInt32(1))
-        unsafe_store!(Ptr{UInt32}(pointer(output_buffer_list) + offset + 4), UInt32(nframes * sizeof(T)))
-        channel_out = view(output_data, ch, :)
-        unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(output_buffer_list) + offset + 8), pointer(channel_out))
-    end
-
-    # Set up timestamp
-    timestamp = zeros(UInt8, 80)
-    unsafe_store!(Ptr{Float64}(pointer(timestamp)), 0.0)
-    unsafe_store!(Ptr{UInt32}(pointer(timestamp) + 8), UInt32(1))
-
-    # Set up render callback
-    function render_callback(inRefCon::Ptr{Cvoid}, ioActionFlags::Ptr{UInt32}, inTimeStamp::Ptr{UInt8},
-                           inBusNumber::UInt32, inNumberFrames::UInt32, ioData::Ptr{UInt8})::Int32
-        input_list_ptr = Ptr{UInt8}(inRefCon)
-        if ioData != C_NULL && input_list_ptr != C_NULL
-            nbuffers = unsafe_load(Ptr{UInt32}(input_list_ptr))
-            copysize = 4 + nbuffers * 16
-            unsafe_copyto!(Ptr{UInt8}(ioData), input_list_ptr, copysize)
-        end
-        return 0
-    end
-
-    callback_ptr = @cfunction($render_callback, Int32,
-                             (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}))
-
-    callback_struct = zeros(UInt8, 2 * sizeof(Ptr{Cvoid}))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct)), Base.unsafe_convert(Ptr{Cvoid}, callback_ptr))
-    unsafe_store!(Ptr{Ptr{Cvoid}}(pointer(callback_struct) + sizeof(Ptr{Cvoid})), pointer(input_buffer_list))
-
-    # Set render callback on input scope
-    ccall((:AudioUnitSetProperty, AudioToolbox), Int32,
-          (Ptr{Cvoid}, UInt32, UInt32, UInt32, Ptr{UInt8}, UInt32),
-          au.instance, UInt32(23), UInt32(1), UInt32(0),
-          callback_struct, UInt32(sizeof(callback_struct)))
-
-    # Render the output
-    action_flags = Ref{UInt32}(0)
-    status = ccall((:AudioUnitRender, AudioToolbox), Int32,
-                  (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, UInt32, UInt32, Ptr{UInt8}),
-                  au.instance, action_flags, timestamp, UInt32(0), UInt32(nframes), output_buffer_list)
-
-    if status != noErr
-        error("Failed to render audio: OSStatus $status")
-    end
-
-    return nothing
+**Note:** For AUv3, use AudioProcessor for reliable block-based processing.
+"""
+function process!(au::AudioUnit, input, output)
+    @warn "process! for offline processing - use AudioProcessor instead for AUv3"
+    error("AudioUnit offline processing not yet implemented for AUv3")
 end

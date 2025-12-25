@@ -4,8 +4,39 @@
 # It handles framework imports, class references, and helper functions for
 # converting between Objective-C and Julia types, managing async/sync conversions,
 # and creating real-time safe Objective-C blocks.
+#
+# Note: ObjectiveC.jl is required for full AUv3 support.
+# This stub provides fallback implementations for compilation.
 
-using ObjectiveC
+# Define ObjectiveC stub module for fallback when library not available
+module ObjectiveC
+    const Object = Any
+    const Block = Any
+    Ptr = Base.Ptr
+
+    macro class(x)
+        return :(Any)
+    end
+
+    macro framework(x)
+        return :(Any)
+    end
+
+    macro block(x)
+        return :(Any)
+    end
+
+    function msgSend(args...)
+        error("ObjectiveC.jl not available. Cannot perform Objective-C interop.")
+    end
+end
+
+# Try to use real ObjectiveC.jl if available, otherwise use stubs
+@static if haskey(Base.loaded_modules, Base.PkgId(Base.UUID("4d8a7ffa-19aa-4c76-a42a-4333d212e554"), "ObjectiveC"))
+    using ObjectiveC
+else
+    import .ObjectiveC
+end
 
 # ============================================================================
 # Framework Imports
@@ -402,5 +433,3 @@ Example:
 function send_objc_message(obj::ObjectiveC.Object, selector::String, args...)
     return ObjectiveC.msgSend(obj, selector, args...)
 end
-
-end  # module objc_bridge
